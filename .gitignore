@@ -132,3 +132,5 @@ dmypy.json
 assets/full_position.csv
 nfl-big-data-bowl-2021.zip
 nfl-big-data-bowl-2021/week[0-9]*.csv
+assets/train_xy.csv
+assets/week_train.csv
