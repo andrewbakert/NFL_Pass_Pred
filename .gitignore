@@ -131,8 +131,8 @@ dmypy.json
 # Ignore files
 nfl-big-data-bowl-2021.zip
 nfl-big-data-bowl-2021/week[0-9]*.csv
-assets
-ml_pipe
+assets/*
+ml_pipe/*
 model_test.ipynb
 route_pred.ipynb
 spark-warehouse
