@@ -132,6 +132,7 @@ dmypy.json
 nfl-big-data-bowl-2021.zip
 nfl-big-data-bowl-2021/week[0-9]*.csv
 assets/*
+Kaggle-Data-Files/*
 ml_pipe/*
 model_test.ipynb
 route_pred.ipynb
