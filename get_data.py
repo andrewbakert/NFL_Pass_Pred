@@ -35,8 +35,9 @@ def get_positional_data():
         os.mkdir(dir)
         positions = pd.DataFrame()
         for week in range(1, 18):
-            week = pd.read_csv(cwd + f'/Kaggle-Data-Files/week{week}.csv')
-            positions = pd.concat([positions, week], axis=0)
+            week_data = pd.read_csv(cwd + f'/Kaggle-Data-Files/week{week}.csv')
+            week_data['week'] = week
+            positions = pd.concat([positions, week_data], axis=0)
         positions.to_csv(fp, index=False)
     else:
         positions = pd.read_csv(fp)
