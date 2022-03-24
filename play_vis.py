@@ -3,12 +3,14 @@ import numpy as np
 from get_data import get_positional_data
 import altair as alt
 
-def create_starting_chart(game_id, play_id):
+def create_starting_chart(pos_df, game_id, play_id):
     """
     Creates chart containing position of each player for a given game and play.
     
     Parameters
     ----------
+    pos_df : Pandas DataFrame
+        Dataframe of all positions and plays
     game_id : str
         ID of game of extracted play
     play_id : str
@@ -18,15 +20,12 @@ def create_starting_chart(game_id, play_id):
     -------
     Altair Chart with player positions, the line of scrimmage, and the first yardline.
     """
-    
-    # Extract all positions
-    full_pos = get_positional_data()
-    
+
     # Extract all plays.
     plays_df = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
     
     # Narrow positions to include only given game and play.
-    play_df = full_pos[(full_pos['gameId'] == game_id) & (full_pos['playId'] == play_id)]
+    play_df = pos_df[(pos_df['gameId'] == game_id) & (pos_df['playId'] == play_id)]
     
     # Extract data only after ball is snapped and merge with plays.
     after_snap = play_df[play_df['time'].ge(play_df[play_df['event'] == 'ball_snap']['time'].iloc[0])]
