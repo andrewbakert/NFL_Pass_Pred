@@ -346,7 +346,7 @@ def generate_action_type_df(df):
     return result_df
 
 # %%
-weeks =  range(1,3)
+weeks =  range(1,7)
 
 #week_data = pd.read_csv('Kaggle-Data-Files/week1.csv')
 play_data = pd.read_csv('Kaggle-Data-Files/plays.csv')
