@@ -6,17 +6,57 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
+import warnings
+warnings.filterwarnings('ignore')
+
 # %%
-def filter_full_position_df(df):
+def new_time(df):
+        #df = df[df['playId']==2372]
+        
+        time = df[['gameId','playId','time']]
+
+        df['key'] = df['gameId'].astype(str) + df['playId'].astype(str) + df['time'].astype(str) + df['nflId'].astype(str)
+
+        man_ms = df.groupby('key').cumcount()
+
+        fb_df = df[df['nflId'].isnull()]
+
+        tot_ms = fb_df[['gameId','playId','time','event']].groupby(by=['gameId','playId','time']).count()
+
+        time_df = pd.concat([time, man_ms], axis=1).rename(columns={0:'new_sec'})
+        
+        tot_ms = tot_ms.reset_index()
+
+        time_df = time_df.reset_index().merge(tot_ms, on=['gameId','playId','time']).set_index('index')
+
+        time_df['new_sec'] = 10 - time_df['event'] + time_df['new_sec']
+
+        time_df['check'] = time_df.time.str[20:21]
+        
+        time_df['man_time'] = time_df.time.str[:20] + time_df['new_sec'].astype(str) + '00Z'
+
+        time_df['new_time'] = np.where(time_df['check']!=time_df['new_sec'], time_df['man_time'], time_df['time'])
+
+        time = time_df['new_time']
+
+        df = df.reset_index().merge(time, on='index').set_index('index').drop(columns=['key','time']).rename(columns={'new_time':'time'})
+
+        return df
+
+
+def filter_full_position_df(df, frameLimit):
+
+    #df = new_time(week_data)
+    
     fb_df = df[df['nflId'].isnull()]
     pos_df = df[df['nflId'].notnull()]
-    
+        
     fb_df['time'] =  pd.to_datetime(fb_df['time'], format='%Y-%m-%dT%H:%M:%S')
     
     # Find time that pass was thrown and merge with main df.
-    pass_start = fb_df[fb_df['event'] == 'pass_forward'][['gameId', 'playId', 'time']].rename({'time': 'time_pass'}, axis=1)
+    pass_start = fb_df[fb_df['event'] == 'pass_forward'][['gameId', 'playId', 'frameId']].rename({'frameId': 'frame_pass'}, axis=1)
     
-    ball_snap = fb_df[fb_df['event'] == 'ball_snap'][['gameId', 'playId', 'time']].rename({'time': 'time_snap'}, axis=1)
+    ball_snap = fb_df[fb_df['event'] == 'ball_snap'][['gameId', 'playId', 'frameId']].rename({'frameId': 'frame_snap'}, axis=1)
 
     pos_df = pos_df.merge(pass_start, on=['gameId', 'playId'], how='left')
     pos_df = pos_df.merge(ball_snap, on=['gameId', 'playId'], how='left')
@@ -25,15 +65,37 @@ def filter_full_position_df(df):
     pos_df['time'] = pd.to_datetime(pos_df['time'], format='%Y-%m-%dT%H:%M:%S')
 
     # Find whether part of play was before pass.
-    pos_df['before_pass'] = pos_df['time'].lt(pos_df['time_pass'])
-    pos_df['after_snap'] = pos_df['time'].gt(pos_df['time_snap'])
+    pos_df['before_pass'] = pos_df['frameId'].le(pos_df['frame_pass'])
+    pos_df['after_snap'] = pos_df['frameId'].ge(pos_df['frame_snap'])
 
     # Filter to include only part of play before pass.
     pos_df = pos_df[pos_df['before_pass']]
     pos_df = pos_df[pos_df['after_snap']]
 
+    uniq_df = pos_df[['frameId','gameId','playId','event']]
+
+    uniq_df = uniq_df.groupby(by=['frameId','gameId','playId']).count().reset_index().drop(columns='event')
+
+    uniq_df = uniq_df.groupby(by=['gameId','playId']).count().sort_values(by='frameId').rename(columns={'frameId':'frameCount'})
+
+    pos_df = pos_df.merge(uniq_df.reset_index(), on=['gameId','playId'])
+
+    short_df = pos_df[pos_df['frameCount'] < frameLimit]
+    short_df = short_df[['gameId','playId','frameId']].groupby(by=['gameId','playId']).count().drop(columns='frameId')
+    
+    #short_df.to_csv('assets/short_plays.csv')
+    
+    pos_df = pos_df[pos_df['frameCount'] >= frameLimit]
+
     return pos_df.drop(columns=['before_pass','after_snap'])
   
+
+
+
+# %%
+#week_data = pd.read_csv('Kaggle-Data-Files/week1.csv')
+
+#filter_full_position_df(week_data, 11)
 
 # %%
 def plot_histogram(df, column, bins, hue, fig_name):
@@ -202,7 +264,7 @@ def transform_directions(df, play_data):
     
 
 # %%
-def reduce_time_and_closest_player(df, n_cuts):
+def reduce_time(df, n_cuts):
     # Cut time accumulated into 10 deciles for each play in order to reduce the space. Can adjust number of cuts.
     time_cuts = df[['gameId', 'playId', 'time_acc_s']].drop_duplicates().groupby(['gameId', 'playId']).agg(
         lambda x: np.nan if x.shape[0] < n_cuts else pd.cut(x, n_cuts, labels=range(1, n_cuts + 1))).explode('time_acc_s')
@@ -223,6 +285,10 @@ def reduce_time_and_closest_player(df, n_cuts):
     off_cut_df = full_cut_df[full_cut_df['off']]
     def_cut_df = full_cut_df[~full_cut_df['off']]
     cut_df = def_cut_df.merge(off_cut_df, on=['gameId', 'playId', 'time_cut'], suffixes=('_def', '_off'))
+
+    return df, cut_df
+
+def simple_closest_player(df, cut_df):
 
     # Find distance to each offensive player and use to find closest player.
     cut_df['distance'] = np.linalg.norm(cut_df[['y_dir_qb_def', 'x_behind_line_def']].values -
@@ -346,39 +412,51 @@ def generate_action_type_df(df):
     return result_df
 
 # %%
-weeks =  range(1,7)
+weeks =  range(1,15)
+
+import time
+start_time = time.time()
 
 #week_data = pd.read_csv('Kaggle-Data-Files/week1.csv')
+print('.......reading inputs.......')
 play_data = pd.read_csv('Kaggle-Data-Files/plays.csv')
 weeks_data = pd.read_csv('assets/full_position.csv')
-print('...starting processing')
-
+print('')
+print('.......starting processing.......')
 output_df = pd.DataFrame()
 
 for week in weeks:
     week_data = weeks_data[weeks_data['week']==week]
     print('...Week {} loaded...'.format(str(week)))
-    filtered_df = filter_full_position_df(week_data)
+    filtered_df = filter_full_position_df(week_data, 11)
     print('...filtered...')
     transform_df = transform_directions(filtered_df, play_data)
     print('...transformed...')
-    reduced_df = reduce_time_and_closest_player(transform_df, 5)
-    print('...reduced...')
-    action_df = generate_action_type_df(reduced_df)
+    full_df, reduced_df = reduce_time(transform_df, 11)
+    #print('...reduced...')
+    simple_df = simple_closest_player(full_df, reduced_df)
+    #print('...measured...')
+    action_df = generate_action_type_df(simple_df)
     action_df['week'] = week
-    print('...actions generated...')
+    print('...generated...')
     if output_df.empty:
         output_df = action_df.copy(deep=True)
     else:
         output_df.append(action_df)
 
     print('.....Week {} COMPLETE.....'.format(str(week)))
-    percent_complete = round(week / len(weeks),2)*100
-    print('...   {}% COMPLETE   ...'.format(str(percent_complete)))
+    print('')
+    percent_complete = round(week / len(weeks)*100,2)
+    print('   {}% COMPLETE   '.format(str(percent_complete)))
+    print('')
+    end_time = time.time()
+    print("--- {} minutes elapsed' ---".format(round((end_time - start_time)/60,1)))
+    print('')
 
-output_df.to_csv('assets/def_action_types.csv')
+output_df.to_csv('assets/def_clean_output.csv')
 
 
+# %%
 
 
 
