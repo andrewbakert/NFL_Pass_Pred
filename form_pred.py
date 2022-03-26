@@ -158,8 +158,8 @@ def clean_positional(positions, first = 1, last = 17):
     #Final data! Everything is getting merged together.
     data = starting_pos.merge(starting_off_pers[['gameId', 'playId', 'offenseFormation']].drop_duplicates(),
                     left_index=True,
-                    right_on=['gameId', 'playId']).drop(['gameId', 'playId'], axis=1)
-
+                    right_on=['gameId', 'playId'])
+ 
     data.dropna(axis=0, inplace=True)
     data = data.loc[:, ~np.all(data == 0, axis=0)]
 
