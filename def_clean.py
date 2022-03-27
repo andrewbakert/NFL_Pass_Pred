@@ -147,7 +147,7 @@ def transform_directions(df, play_data):
     # Find which teams in the dataframe are offensive vs. defensive.
     df['off'] = np.where(df['position'].isin(['QB', 'HB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'RB']),
                                                 True, False)
-    print("check for any offensive positions not mapped", df[~df['off']]['position'].unique())
+    #print("check for any offensive positions not mapped", df[~df['off']]['position'].unique())
 
     # Extract starting x and y position.
     df['x_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x'].transform(lambda x: x.iloc[0])
@@ -407,9 +407,34 @@ def generate_action_type_df(df):
     review_df.to_csv('assets/action_type_over_time_cuts.csv')
     #complete_df.reset_index().pivot(index=['gameId', 'playId'], columns='posId',values='def_action')
 
-    result_df = result_df.reset_index().pivot(index=['gameId', 'playId'], columns='posId',values='def_action')
+    #result_df = result_df.reset_index().pivot(index=['gameId', 'playId'], columns='posId',values='def_action')
+    result_df = result_df.reset_index().rename(columns={'def_action':'value'})
+
+    result_df['posId'] = result_df['posId'] + '_act'
 
     return result_df
+
+# %%
+def starting_pos(full_df):
+    full_df=full_df[['gameId','playId','posId','x_starting','y_starting','off']].drop_duplicates()
+
+    xy_df = full_df[~full_df['off']].drop(columns='off')
+
+    x_df = xy_df[['gameId','playId','posId','x_starting']].drop_duplicates()
+
+    y_df = xy_df[['gameId','playId','posId','y_starting']].drop_duplicates()
+    
+    y_df = y_df.groupby(['gameId','playId','posId']).mean().reset_index().rename(columns={'y_starting':'value'})
+    y_df['posId'] = y_df['posId'] + '_y_start'
+
+    x_df = x_df.groupby(['gameId','playId','posId']).mean().reset_index().rename(columns={'x_starting':'value'})
+    x_df['posId'] = x_df['posId'] + '_x_start'
+
+    start_df = pd.concat([x_df,y_df],axis=0)
+
+    return start_df
+
+
 
 # %%
 weeks =  range(1,15)
@@ -436,13 +461,15 @@ for week in weeks:
     #print('...reduced...')
     simple_df = simple_closest_player(full_df, reduced_df)
     #print('...measured...')
+    start_df = starting_pos(full_df)
     action_df = generate_action_type_df(simple_df)
-    action_df['week'] = week
+    total_df =  pd.concat([action_df,start_df],axis=0)
+    total_df['week'] = week
     print('...generated...')
     if output_df.empty:
-        output_df = action_df.copy(deep=True)
+        output_df = total_df.copy(deep=True)
     else:
-        output_df.append(action_df)
+        output_df = output_df.append(total_df)
 
     print('.....Week {} COMPLETE.....'.format(str(week)))
     print('')
@@ -450,13 +477,15 @@ for week in weeks:
     print('   {}% COMPLETE   '.format(str(percent_complete)))
     print('')
     end_time = time.time()
-    print("--- {} minutes elapsed' ---".format(round((end_time - start_time)/60,1)))
+    print("--- {} minutes elapsed ---".format(round((end_time - start_time)/60,1)))
     print('')
 
+    print("the weeks complete: ", output_df.week.unique())
+
+output_df = output_df.pivot(index=['gameId', 'playId'], columns='posId',values='value')
 output_df.to_csv('assets/def_clean_output.csv')
 
-
-# %%
+print("Defensive cleaning complete --- check assets/def_clean_output.csv")
 
 
 
