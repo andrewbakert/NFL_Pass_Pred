@@ -30,16 +30,15 @@ def clean_positional(positions, first = 1, last = 17):
 
     # data cleaning where yardline is not Null
     starting_pos_plays = starting_pos_plays[starting_pos_plays['absoluteYardlineNumber'].notnull()]
-
     # bring in game info (see game info data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
     games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
 
     #bringing in features from games
     starting_pos_play_game = starting_pos_plays.merge(games, on='gameId', how='left')
-
     #naming which team has the ball as offense or defense
     starting_pos_play_game['offdef'] = np.where((starting_pos_play_game['team'] == 'away') &
-                                                (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['visitorTeamAbbr']),
+                                                (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['visitorTeamAbbr']) | (starting_pos_play_game['team'] == 'home') &
+                                                (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['homeTeamAbbr']),
                                                 'offense', 'defense')
 
     #starting position from offense players 
@@ -159,7 +158,7 @@ def clean_positional(positions, first = 1, last = 17):
     data = starting_pos.merge(starting_off_pers[['gameId', 'playId', 'offenseFormation']].drop_duplicates(),
                     left_index=True,
                     right_on=['gameId', 'playId'])
- 
+
     data.dropna(axis=0, inplace=True)
     data = data.loc[:, ~np.all(data == 0, axis=0)]
 
