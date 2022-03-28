@@ -213,13 +213,20 @@ class DefensiveCleaning:
         # Next, group and extract ranking of positions based on whether team is home or away
         # and the starting position.
 
-        left = start_df[start_df['qb_side'] == 'L']
-        right = start_df[start_df['qb_side'] == 'R']
-        l = left.sort_values('y_starting_dir',ascending=False).groupby(['gameId', 'playId', 'position']).apply(lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
-        r = right.sort_values('y_starting_dir').groupby(['gameId', 'playId', 'position']).apply(lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+        qb_start = start_df[start_df['position'] == 'QB']
+        non_qb_start = start_df[start_df['position'] != 'QB']
+        left = non_qb_start[non_qb_start['qb_side'] == 'L']
+        right = non_qb_start[non_qb_start['qb_side'] == 'R']
+        l = left.sort_values('y_starting_dir',ascending=False).groupby(['gameId', 'playId', 'position']).apply(
+            lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+        r = right.sort_values('y_starting_dir').groupby(['gameId', 'playId', 'position']).apply(
+            lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+        qb = qb_start.sort_values('y_starting_dir').groupby(['gameId', 'playId', 'position']).apply(
+            lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
         l['qb_side'] = 'L'
         r['qb_side'] = 'R'
-        full = pd.concat([l, r], axis=0)
+        qb['qb_side'] = 'R'
+        full = pd.concat([l, r, qb], axis=0)
         full['nflId'] = full['nfl_num'].map(lambda x: x[0])
         full['pos_order'] = full['nfl_num'].map(lambda x: x[1])
         full.drop('nfl_num', axis=1, inplace=True)
