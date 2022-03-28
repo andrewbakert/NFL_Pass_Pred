@@ -78,6 +78,7 @@ class DefensiveCleaning:
     def filter_full_position_df(self, week):
         #df = self.new_time(week=week)
         df = self.weeks_data[self.weeks_data['week'] == week]
+        print('...Week {} loaded...'.format(str(week)))
         fb_df = df[df['nflId'].isnull()]
         pos_df = df[df['nflId'].notnull()]
 
@@ -147,14 +148,13 @@ class DefensiveCleaning:
         plt.close()
 
     def transform_directions(self, week):
-        # Extract the time elapsed in the play. Labeled as "time_acc_s". May take a while for full dataset.
         df = self.filter_full_position_df(week=week)
         play_data = self.play_data.copy()
         df['time_diff'] = df.groupby(['playId', 'gameId', 'displayName'])['time'].diff()
         df['time_diff'][df['time_diff'].isnull()] = pd.Timedelta(0)
-        df['time_acc_s'] = df.groupby(['playId', 'gameId', 'displayName'])['time_diff'].transform(
-            lambda x: x.map(lambda x: x.microseconds).cumsum()).div(1e6)
-
+        df['time_acc_s'] = df['time_diff'].dt.microseconds.div(1e6)
+        df['time_acc_s'] = df.groupby(['playId', 'gameId', 'nflId'])['time_acc_s'].transform(lambda x: x.cumsum())
+        df.drop('time_diff', axis=1, inplace=True)
 
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
         #print(play_df.shape)
@@ -212,31 +212,26 @@ class DefensiveCleaning:
 
         # Next, group and extract ranking of positions based on whether team is home or away
         # and the starting position.
-        order_col = np.where(start_df['position'] != 'QB',
-                             (start_df.groupby(['gameId', 'playId', 'position', 'qb_side'])
-                              .apply(lambda x: np.where(x.index.get_level_values(-1) == 'R',
-                                                        self.find_rank(x, 'y_starting_dir'),
-                                                        self.find_rank(x, 'y_starting_dir', reverse=True)))
-                              .explode()
-                              .values
-                              ),
-                             (start_df.groupby(['gameId', 'playId', 'position'])
-                              .apply(lambda x: self.find_rank(x, 'y_starting_dir'))
-                              .explode()
-                              .values
-                              )
-                             )
-        # Add column with the position order to the df with indexed starting position.
-        start_df['pos_order'] = order_col
 
-        # Concatenate position and position order to create unique position identifier.
-        start_df['posId'] = np.where(start_df['position'] != 'QB',
-                                     start_df['position'].add(start_df['qb_side']).add(start_df['pos_order'].astype(str)),
-                                     start_df['position'].add(start_df['pos_order'].astype(str)))
+        left = start_df[start_df['qb_side'] == 'L']
+        right = start_df[start_df['qb_side'] == 'R']
+        l = left.sort_values('y_starting_dir',ascending=False).groupby(['gameId', 'playId', 'position']).apply(lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+        r = right.sort_values('y_starting_dir').groupby(['gameId', 'playId', 'position']).apply(lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+        l['qb_side'] = 'L'
+        r['qb_side'] = 'R'
+        full = pd.concat([l, r], axis=0)
+        full['nflId'] = full['nfl_num'].map(lambda x: x[0])
+        full['pos_order'] = full['nfl_num'].map(lambda x: x[1])
+        full.drop('nfl_num', axis=1, inplace=True)
+        start_df_full = start_df.merge(full, on=['gameId', 'playId', 'nflId', 'position', 'qb_side'])
+
+        start_df_full['posId'] = np.where(start_df_full['position'] != 'QB',
+                                          start_df_full['position'].add(start_df_full['qb_side']).add(start_df_full['pos_order'].astype(str)),
+                                          start_df_full['position'].add(start_df_full['pos_order'].astype(str)))
 
 
         # Merge full dataframe with position number dataframe.
-        df = df.merge(start_df[['gameId', 'playId', 'nflId', 'posId', 'pos_order']], on=['gameId', 'playId', 'nflId'])
+        df = df.merge(start_df_full[['gameId', 'playId', 'nflId', 'posId', 'pos_order']], on=['gameId', 'playId', 'nflId'])
 
         # Use regex to extract personnel from personnel column, and concatenate with main dataframe.
         df = pd.concat([df, df['personnelD'].str.extract('(?P<DL>\d+) DL, (?P<LB>\d+) LB, (?P<DB>\d+) DB')], axis=1)
@@ -280,7 +275,6 @@ class DefensiveCleaning:
         # The distribution looks centered around 0, as would be expected given that the QB lines up in the center.
         #plot_histogram(df, 'y_dir_qb', 50, 'off', 'y_qb_dist')
         print('...transformed...')
-
         return df
 
     def reduce_time(self, week):
@@ -520,14 +514,14 @@ class DefensiveCleaning:
         print('.....Week {} COMPLETE.....'.format(str(week)))
         return total_df
 
-    def generate_full_df(self, first, last):
+    def generate_full_df(self, first, last, fp='def_clean_output.csv'):
         output_df = pd.DataFrame()
         start_time = time.time()
         for week in range(first, last+1):
             total_df = self.combine_week(week=week)
             output_df = pd.concat([output_df, total_df], axis=0)
             print('')
-            percent_complete = round(week / (last - first)*100,2)
+            percent_complete = round((week - first + 1) / (last - first + 1)*100,2)
             print('   {}% COMPLETE   '.format(str(percent_complete)))
             print('')
             end_time = time.time()
@@ -535,6 +529,6 @@ class DefensiveCleaning:
             print('')
             print("the weeks complete: ", output_df.week.unique())
         output_df = output_df.pivot(index=['gameId', 'playId'], columns='posId',values='value')
-        output_df.to_csv('assets/def_clean_output.csv')
-        print("Defensive cleaning complete --- check assets/def_clean_output.csv")
+        output_df.to_csv(f'assets/{fp}')
+        print(f"Defensive cleaning complete --- check assets/{fp}")
         return output_df
