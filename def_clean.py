@@ -171,8 +171,8 @@ class DefensiveCleaning:
         #print("check for any offensive positions not mapped", df[~df['off']]['position'].unique())
 
         # Extract starting x and y position.
-        df['x_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x'].transform(lambda x: x.iloc[0])
-        df['y_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y'].transform(lambda x: x.iloc[0])
+        df['x_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x'].transform("first")
+        df['y_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y'].transform("first")
 
         # Subtract 10 from yardline to get relative to left endzone.
         df['yardline_100'] = df['absoluteYardlineNumber'].sub(10)
@@ -300,7 +300,8 @@ class DefensiveCleaning:
         df = df.merge(time_cuts_idx, on=['gameId', 'playId', 'time_acc_s'])
 
         # Aggregate by cur.
-        full_cut_df = df.groupby(['gameId', 'playId', 'posId', 'time_cut']).agg({'y_dir_qb': 'mean', 'x_behind_line': 'mean', 'off': 'first'}).reset_index()
+        full_cut_df = df.groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
+            {'y_dir_qb': 'mean', 'x_behind_line': 'mean', 'off': 'first'}).reset_index()
 
         # Find offense and defence and merge.
         off_cut_df = full_cut_df[full_cut_df['off']]
@@ -367,6 +368,58 @@ class DefensiveCleaning:
         print('...distance calculated...')
 
         return df
+
+    def cosine_closest_player(self, cut_df):
+        cut_even = cut_df[cut_df['time_cut'].map(lambda x: x % 2 == 0)]
+        cut_odd = cut_df[cut_df['time_cut'].map(lambda x: x % 2 == 1)]
+        cut_even['prev_cut'] = cut_even['time_cut'].sub(1)
+        cuts_even_merged = cut_even.merge(cut_odd,
+                                          left_on=['gameId', 'playId', 'posId_def', 'posId_off', 'prev_cut'],
+                                          right_on=['gameId', 'playId', 'posId_def', 'posId_off', 'time_cut'],
+                                          suffixes=('_time2', '_time1'))
+        cut_odd['prev_cut'] = cut_odd['time_cut'].sub(1)
+        cut_even.drop('prev_cut', axis=1, inplace=True)
+        cut_odd = cut_odd[cut_odd['prev_cut'].gt(0)]
+        cuts_odd_merged = cut_odd.merge(cut_even,
+                                        left_on=['gameId', 'playId', 'posId_def', 'posId_off', 'prev_cut'],
+                                        right_on=['gameId', 'playId', 'posId_def', 'posId_off', 'time_cut'],
+                                        suffixes=('_time2', '_time1'))
+        full_cut_merged = pd.concat([cuts_even_merged, cuts_odd_merged], axis=0)
+        full_cut_merged = full_cut_merged.sort_values(
+            ['gameId', 'playId', 'posId_def', 'time_cut_time1', 'posId_off'])
+        full_cut_merged['y_dir_qb_def_delta'] = full_cut_merged['y_dir_qb_def_time2'].sub(
+            full_cut_merged['y_dir_qb_def_time1'])
+        full_cut_merged['x_behind_line_def_delta'] = full_cut_merged['x_behind_line_def_time2'].sub(
+            full_cut_merged['x_behind_line_def_time1'])
+        def_vector = np.concatenate([
+            full_cut_merged['x_behind_line_def_delta'].values.reshape(-1, 1),
+            full_cut_merged['y_dir_qb_def_delta'].values.reshape(-1, 1)], axis=1)
+        full_cut_merged['y_dir_qb_off_delta'] = full_cut_merged['y_dir_qb_off_time2'].sub(
+            full_cut_merged['y_dir_qb_off_time1'])
+        full_cut_merged['x_behind_line_off_delta'] = full_cut_merged['x_behind_line_off_time2'].sub(
+            full_cut_merged['x_behind_line_off_time1'])
+        off_vector = np.concatenate([
+            full_cut_merged['x_behind_line_off_delta'].values.reshape(-1, 1),
+            full_cut_merged['y_dir_qb_off_delta'].values.reshape(-1, 1)], axis=1)
+        cosine_sim = np.sum(def_vector * off_vector, axis=1)/(
+                np.linalg.norm(def_vector, axis=1) * np.linalg.norm(off_vector, axis=1))
+        full_cut_merged['cosine_sim'] = cosine_sim
+        max_cosine = full_cut_merged.groupby(['gameId', 'playId', 'posId_def', 'time_cut_time2'])['cosine_sim'].agg(
+            lambda x: np.argmax(x)
+        )
+        max_cosine.name = 'max_cosine_idx'
+        full_cut_cosine = full_cut_merged.merge(max_cosine,
+                                                left_on=['gameId', 'playId', 'posId_def',
+                                                         'time_cut_time2'],
+                                                right_index=True)
+        full_cut_cosine['player_idx'] = full_cut_cosine.groupby(
+            ['gameId', 'playId', 'posId_def', 'time_cut_time2']).apply(
+            lambda x: range(x.shape[0])).explode().values
+        full_top_cosine = full_cut_cosine[full_cut_cosine['max_cosine_idx'] == full_cut_cosine['player_idx']]
+        player_closest_cosine = full_top_cosine[
+            ['gameId', 'playId', 'posId_def', 'time_cut_time2', 'posId_off']]
+        print('...closest player based on cosine similarity calculated...')
+        return player_closest_cosine
 
     def starting_pos(self, full_df):
 
