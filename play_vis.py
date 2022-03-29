@@ -104,12 +104,12 @@ def create_starting_chart(pos_df, game_id, play_id):
               .encode(x=alt.X('y_dir:Q', scale=alt.Scale(domain=[0, 53.3]), title=None),
                       y=alt.Y('x_dir:Q', scale=alt.Scale(zero=False), title='Yardline'),
                       text=alt.Text('position:N'))
-              .mark_text(dx=-15)
+              .mark_text(dx=-15, fontSize=10)
               )
 
     # Create charts for first down and line of scrimmage.
     yardline_100 = alt.Chart(starting).encode(y=alt.Y('yardline_dir:Q')).mark_rule(color='blue')
     yardline_first = alt.Chart(starting).encode(y=alt.Y('yardline_first_dir:Q')).mark_rule(color='#ECEC01')
     full_chart = ((marks + labels + yardline_100 + yardline_first)
-                  .properties(width=53.3*15, height=(starting['x_dir'].max() - starting['x_dir'].min())*15))
+                  .properties(width=53.3*10, height=(starting['x_dir'].max() - starting['x_dir'].min())*10))
     return full_chart

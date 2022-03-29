@@ -389,18 +389,35 @@ class DefensiveCleaning:
             lambda x: np.argmax(x)
         )
         max_cosine.name = 'max_cosine_idx'
+
         full_cut_cosine = full_cut_merged.merge(max_cosine,
                                                 left_on=['gameId', 'playId', 'posId_def',
                                                          'time_cut_time2'],
                                                 right_index=True)
-        full_cut_cosine['player_idx'] = full_cut_cosine.groupby(
+        min_cosine = full_cut_merged.groupby(['gameId', 'playId', 'posId_def', 'time_cut_time2'])['cosine_sim'].agg(
+            lambda x: np.argmin(x)
+        )
+        min_cosine.name = 'min_cosine_idx'
+        full_cut_cosine_max_min = full_cut_cosine.merge(min_cosine,
+                                                        left_on=['gameId', 'playId', 'posId_def',
+                                                                             'time_cut_time2'],
+                                                        right_index=True)
+        full_cut_cosine_max_min['player_idx'] = full_cut_cosine_max_min.groupby(
             ['gameId', 'playId', 'posId_def', 'time_cut_time2']).apply(
             lambda x: range(x.shape[0])).explode().values
-        full_top_cosine = full_cut_cosine[full_cut_cosine['max_cosine_idx'] == full_cut_cosine['player_idx']]
-        player_closest_cosine = full_top_cosine[
-            ['gameId', 'playId', 'posId_def', 'time_cut_time2', 'posId_off']]
+        full_top_cosine = full_cut_cosine_max_min[full_cut_cosine_max_min['max_cosine_idx'] ==
+                                                  full_cut_cosine_max_min['player_idx']]
+        full_top_cosine.rename({'posId_off': 'posId_off_max'}, axis=1, inplace=True)
+        full_bot_cosine = full_cut_cosine_max_min[full_cut_cosine_max_min['min_cosine_idx'] ==
+                                                  full_cut_cosine_max_min['player_idx']]
+        full_bot_cosine.rename({'posId_off': 'posId_off_min'}, axis=1, inplace=True)
+        player_closest_cosine = full_top_cosine.merge(full_bot_cosine,
+                                                      on=['gameId', 'playId',
+                                                          'posId_def', 'time_cut_time2'])
+        full_cosine = player_closest_cosine[
+            ['gameId', 'playId', 'posId_def', 'time_cut_time2', 'posId_off_max', 'posId_off_min']]
         print('...closest player based on cosine similarity calculated...')
-        return player_closest_cosine
+        return full_cosine
 
     def starting_pos(self, full_df):
 
