@@ -169,7 +169,7 @@ class DefensiveCleaning:
         df['off_dir'] = np.where(df['yardline_first'].gt(df['yardline_100']),'left', 'right')
 
         # Adjust starting y coordinate because the perspective would change depending on the side.
-        df['y_starting_dir'] = np.where(df['off_dir'] == 'right', df['y_starting'].rsub(53.3), df['y_starting'])
+        df['y_starting_dir'] = np.where(df['off_dir'] == 'right', df['y_starting'], df['y_starting'].rsub(53.3))
 
         #plot_histogram(df, 'y_starting', 50, 'off', 'y_pos_orig')
         #plot_histogram(df, 'y_starting_dir', 50, 'off', 'y_pos_notnorm')
@@ -233,14 +233,15 @@ class DefensiveCleaning:
         # Extract the yardline for first down and line of scrimmage based on the
         # direction that the teams are facing.
         df['yardline_first_dir'] = np.where(df['off_dir'] == 'right',
-                                            df['yardline_first'],
-                                            df['yardline_first'].rsub(100))
+                                            df['yardline_first'].rsub(100),
+                                            df['yardline_first'])
         df['yardline_100_dir'] = np.where(df['off_dir'] == 'right',
-                                          df['yardline_100'],
-                                          df['yardline_100'].rsub(100))
+                                          df['yardline_100'].rsub(100),
+                                          df['yardline_100'])
 
         # Add flag if a player has gone at least 1 yard past the line of scrimmage.
-        df['exceeded_1yd'] = df.groupby(['gameId', 'playId', 'nflId'])['x_behind_line'].transform(lambda x: x.max() > 1)
+        df['exceeded_1yd'] = df.groupby(['gameId', 'playId', 'nflId'])['x_behind_line'].transform(lambda x:
+                                                                                                  x.max() > 1)
 
         # Use whether player is on offense, whether the player is a QB or WR, and whether a player has
         # moved 1 yard beyond the line of scrimmage to determine if the player is a receiver.
