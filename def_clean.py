@@ -120,27 +120,6 @@ class DefensiveCleaning:
         print('...filtered...')
         return pos_df.drop(columns=['before_pass','after_snap'])
 
-    def find_rank(self, df, col, reverse=False):
-        """
-        Find the ranking of a series based on values.
-        :param df: Dataframe for ranking; pd.DataFrame
-        :param col: Column from dataframe to rank; str
-        :param reverse: Flag of whether to reverse rank direction; bool
-        :return: Array with rankings; np.array
-        """
-        # Extract series and use arsort to find rankings.
-        ser = df[col]
-        temp = np.argsort(ser)
-
-        # Reverse direction based on flag.
-        if reverse:
-            temp = temp[::-1]
-
-        # Fill ranking array.
-        ranks = np.empty_like(temp)
-        ranks[temp] = np.arange(ser.shape[0])
-        return ranks
-
     def plot_histogram(self, df, column, bins, hue, fig_name):
         sns.histplot(data=df, x=column, bins=bins, hue=hue)
         figure = 'assets/' + fig_name + '.png'
@@ -488,7 +467,9 @@ class DefensiveCleaning:
 
         pos_df = action_group_df.reset_index()
         actions = np.where((pos_df.groupby(['gameId', 'playId'])['posId'].transform(lambda x: x.shape[0] == 1)
-                            & pos_df['pos_off_closest'].str.contains('QB')) | pos_df.sort_values('time_cut')
+                            & pos_df['pos_off_closest'].str.contains('QB')) | pos_df.sort_values(
+            ['time_cut', 'pos_off_closest'], ascending=[True, False]
+        )
                            .groupby(['gameId', 'playId', 'posId'])['pos_off_closest'].transform(
             lambda x: x.iloc[-1][:2] == 'QB'), 'B',
                            np.where(pos_df.groupby(['gameId', 'playId', 'posId'])['pos_off_closest']
