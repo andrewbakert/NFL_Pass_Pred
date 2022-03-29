@@ -158,7 +158,7 @@ class DefensiveCleaning:
 
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
         #print(play_df.shape)
-        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD']]
+        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD', 'defendersInTheBox']]
 
         # Merge movement and play-by-play datasets.
         df = df.merge(play_df, on=['gameId', 'playId'])
@@ -248,7 +248,7 @@ class DefensiveCleaning:
                                        df['absoluteYardlineNumber'].sub(df['x']),
                                        df['x'].sub(df['absoluteYardlineNumber']))
 
-
+        df['x_behind_line_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x_behind_line'].transform('first')
         #plot_histogram(df, 'x_behind_line', 50, 'off', 'x_behind_line')
 
         # Extract the yardline for first down and line of scrimmage based on the
@@ -278,6 +278,7 @@ class DefensiveCleaning:
 
         # Define y coordinates as relative to QB.
         df['y_dir_qb'] = df['y_dir'].sub(df['y_starting_qb'])
+        df['y_dir_qb_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y_dir_qb'].transform('first')
 
         # The distribution looks centered around 0, as would be expected given that the QB lines up in the center.
         #plot_histogram(df, 'y_dir_qb', 50, 'off', 'y_qb_dist')
@@ -424,23 +425,26 @@ class DefensiveCleaning:
 
     def starting_pos(self, full_df):
 
-        full_df=full_df[['gameId','playId','posId','x_starting','y_starting','off']].drop_duplicates()
-
-        xy_df = full_df[~full_df['off']].drop(columns='off')
-
-        x_df = xy_df[['gameId','playId','posId','x_starting']].drop_duplicates()
-
-        y_df = xy_df[['gameId','playId','posId','y_starting']].drop_duplicates()
-
-        y_df = y_df.groupby(['gameId','playId','posId']).mean().reset_index().rename(columns={'y_starting':'value'})
-        y_df['posId'] = y_df['posId'] + '_y_start'
-
-        x_df = x_df.groupby(['gameId','playId','posId']).mean().reset_index().rename(columns={'x_starting':'value'})
-        x_df['posId'] = x_df['posId'] + '_x_start'
-
-        start_df = pd.concat([x_df,y_df],axis=0)
+        trans_df = full_df[['gameId', 'playId', 'posId', 'y_starting_dir', 'x_behind_line_starting',
+                            'defendersInTheBox', 'DB', 'LB', 'DL', 'off',
+                            'yardline_100', 'yardline_first']].drop_duplicates()
+        trans_df_def = trans_df[~trans_df['off']]
+        trans_df_def.drop('off', axis=1, inplace=True)
+        trans_stacked = (trans_df_def.set_index(['gameId', 'playId', 'posId',
+                                                 'defendersInTheBox', 'DB', 'LB', 'DL',
+                                                 'yardline_first', 'yardline_100'])
+                         .stack()
+                         .reset_index()
+                         .rename({'level_9': 'starting', 0: 'value'}, axis=1)
+                         .replace({'y_starting_dir': 'y_start', 'x_behind_line_starting': 'x_start'})
+                         )
+        trans_stacked['posId'] = trans_stacked['posId'].add('_').add(trans_stacked['starting'])
+        trans_stacked.drop('starting', axis=1, inplace=True)
+        start_df = trans_stacked[['gameId', 'playId', 'posId', 'value']]
+        info_df = trans_stacked[['gameId', 'playId', 'defendersInTheBox', 'DB', 'LB', 'DL',
+                                 'yardline_first', 'yardline_100']].drop_duplicates()
         print('...starting dataframe generated...')
-        return start_df
+        return start_df, info_df
 
     def return_action_by_pos(self, df):
         play_pos_Ids = df.index
@@ -475,51 +479,42 @@ class DefensiveCleaning:
     def generate_action_type_df(self, df):
         # Aggregate columns based on game, play, numbered position, and time quartile.
         df = df[~df['off'] & (df['position'] != 'TE')].groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
-            {'x_starting': 'first', 'y_starting': 'first',
-             'yardline_100_dir': 'first', 'yardline_first_dir': 'first',
-             'DL': 'first', 'LB': 'first', 'DB': 'first',
-             'x_behind_line': 'mean', 'y_dir': 'mean', 'min_dist_rec': 'mean',
-             'dist_qb': 'mean',
-             'pos_off_closest': 'first'}
+            {'pos_off_closest': 'first'}
         ).reset_index()
 
         action_df = df[['gameId','playId','posId','time_cut','pos_off_closest']]
 
         action_group_df = action_df.groupby(by=['gameId','playId','posId','pos_off_closest']).mean().reset_index().set_index(['gameId','playId','posId'])
 
-        #pos = action_group_df.loc[(2018090600,   889,  'MLBR0')]
-
-        #print(pos[pos.time_cut == pos.time_cut.max()]['pos_off_closest'].values[0])
-
-        result_df = self.return_action_by_pos(action_group_df)
-
-        result_df = result_df[~result_df.index.duplicated(keep='first')]
-
-        review_df = action_df.merge(result_df, on=['gameId', 'playId', 'posId'], how='left')
-
-        #complete_df['key'] = complete_df['gameId'].astype(str) + complete_df['playId'].astype(str) + complete_df['posId']
-        review_df.to_csv('assets/action_type_over_time_cuts.csv')
-        #complete_df.reset_index().pivot(index=['gameId', 'playId'], columns='posId',values='def_action')
-
-        #result_df = result_df.reset_index().pivot(index=['gameId', 'playId'], columns='posId',values='def_action')
-        result_df = result_df.reset_index().rename(columns={'def_action':'value'})
-
-        result_df['posId'] = result_df['posId'] + '_act'
-        print('...action type dataframe generated...')
+        pos_df = action_group_df.reset_index()
+        actions = np.where((pos_df.groupby(['gameId', 'playId'])['posId'].transform(lambda x: x.shape[0] == 1)
+                            & pos_df['pos_off_closest'].str.contains('QB')) | pos_df.sort_values('time_cut')
+                           .groupby(['gameId', 'playId', 'posId'])['pos_off_closest'].transform(
+            lambda x: x.iloc[-1][:2] == 'QB'), 'B',
+                           np.where(pos_df.groupby(['gameId', 'playId', 'posId'])['pos_off_closest']
+                                    .transform(lambda x: (x.map(lambda x: x[:2]) != 'QB').sum() == 1),
+                                    'M', 'Z'))
+        action_group_df['def_action'] = actions
+        action_group_df.drop(['pos_off_closest', 'time_cut'], axis=1, inplace=True)
+        result_df = action_group_df.reset_index().drop_duplicates()
+        result_df['posId'] = result_df['posId'].add('_act')
+        result_df.rename({'def_action': 'value'}, axis=1, inplace=True)
+        print('...action type generated...')
         return result_df
 
     def combine_week(self, week):
         full_df, cut_df = self.reduce_time(week)
-        start_df = self.starting_pos(full_df)
+        start_df, info_df = self.starting_pos(full_df)
         if self.simMethod == 'distance':
             simple_df = self.simple_closest_player(full_df, cut_df)
             action_df = self.generate_action_type_df(simple_df)
         else:
             raise InvalidSimilarityMetricError
         total_df =  pd.concat([action_df,start_df],axis=0)
-        total_df['week'] = week
+        total_df_info = total_df.merge(info_df, on=['gameId', 'playId'])
+        total_df_info['week'] = week
         print('.....Week {} COMPLETE.....'.format(str(week)))
-        return total_df
+        return total_df_info
 
     def generate_full_df(self, first, last, fp='def_clean_output.csv'):
         output_df = pd.DataFrame()
@@ -535,7 +530,8 @@ class DefensiveCleaning:
             print("--- {} minutes elapsed ---".format(round((end_time - start_time)/60,1)))
             print('')
             print("the weeks complete: ", output_df.week.unique())
-        output_df = output_df.pivot(index=['gameId', 'playId'], columns='posId',values='value')
+        output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox', 'DB', 'LB', 'DL',
+                                           'yardline_first', 'yardline_100'], columns='posId',values='value')
         output_df.to_csv(f'assets/{fp}')
         print(f"Defensive cleaning complete --- check assets/{fp}")
         return output_df
