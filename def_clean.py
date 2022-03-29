@@ -425,7 +425,7 @@ class DefensiveCleaning:
 
     def starting_pos(self, full_df):
 
-        trans_df = full_df[['gameId', 'playId', 'posId', 'y_starting_dir', 'x_behind_line_starting',
+        trans_df = full_df[['gameId', 'playId', 'posId', 'y_dir_qb_starting', 'x_behind_line_starting',
                             'defendersInTheBox', 'DB', 'LB', 'DL', 'off',
                             'yardline_100', 'yardline_first']].drop_duplicates()
         trans_df_def = trans_df[~trans_df['off']]
@@ -436,7 +436,7 @@ class DefensiveCleaning:
                          .stack()
                          .reset_index()
                          .rename({'level_9': 'starting', 0: 'value'}, axis=1)
-                         .replace({'y_starting_dir': 'y_start', 'x_behind_line_starting': 'x_start'})
+                         .replace({'y_dir_qb_starting': 'y_start', 'x_behind_line_starting': 'x_start'})
                          )
         trans_stacked['posId'] = trans_stacked['posId'].add('_').add(trans_stacked['starting'])
         trans_stacked.drop('starting', axis=1, inplace=True)
