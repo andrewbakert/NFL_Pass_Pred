@@ -443,36 +443,6 @@ class DefensiveCleaning:
         print('...starting dataframe generated...')
         return start_df, info_df
 
-    def return_action_by_pos(self, df):
-        play_pos_Ids = df.index
-
-        action_types = []
-
-        for ppId in play_pos_Ids:
-
-            pos = df.loc[ppId]
-
-            pos_no_qb = pos[pos['pos_off_closest']!='QB0']
-
-            action = None
-
-            if len(pos) == 1 and pos['pos_off_closest'].values == 'QB0':
-                action = "B"
-
-            if len(pos_no_qb) == 1:
-                action = "M"
-            else:
-                action = "Z"
-
-            if pos[pos.time_cut == pos.time_cut.max()]['pos_off_closest'].values[0] == 'QB0':
-                action = "B"
-
-            action_types.append([ppId[0],ppId[1],ppId[2], action])
-
-        return pd.DataFrame(action_types,
-                            columns=['gameId','playId','posId','def_action']).set_index(
-            ['gameId','playId','posId'])
-
     def generate_action_type_df(self, df):
         # Aggregate columns based on game, play, numbered position, and time quartile.
         df = df[~df['off'] & (df['position'] != 'TE')].groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
