@@ -137,7 +137,7 @@ class DefensiveCleaning:
 
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
         #print(play_df.shape)
-        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD', 'defendersInTheBox']]
+        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD', 'defendersInTheBox','numberOfPassRushers']]
 
         # Merge movement and play-by-play datasets.
         df = df.merge(play_df, on=['gameId', 'playId'])
@@ -423,22 +423,22 @@ class DefensiveCleaning:
     def starting_pos(self, full_df):
 
         trans_df = full_df[['gameId', 'playId', 'posId', 'y_dir_qb_starting', 'x_behind_line_starting',
-                            'defendersInTheBox', 'DB', 'LB', 'DL', 'off',
+                            'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL', 'off',
                             'yardline_100', 'yardline_first']].drop_duplicates()
         trans_df_def = trans_df[~trans_df['off']]
         trans_df_def.drop('off', axis=1, inplace=True)
         trans_stacked = (trans_df_def.set_index(['gameId', 'playId', 'posId',
-                                                 'defendersInTheBox', 'DB', 'LB', 'DL',
+                                                 'defendersInTheBox','numberOfPassRushers','DB', 'LB', 'DL',
                                                  'yardline_first', 'yardline_100'])
                          .stack()
                          .reset_index()
-                         .rename({'level_9': 'starting', 0: 'value'}, axis=1)
+                         .rename({'level_10': 'starting', 0: 'value'}, axis=1)
                          .replace({'y_dir_qb_starting': 'y_start', 'x_behind_line_starting': 'x_start'})
                          )
         trans_stacked['posId'] = trans_stacked['posId'].add('_').add(trans_stacked['starting'])
         trans_stacked.drop('starting', axis=1, inplace=True)
         start_df = trans_stacked[['gameId', 'playId', 'posId', 'value']]
-        info_df = trans_stacked[['gameId', 'playId', 'defendersInTheBox', 'DB', 'LB', 'DL',
+        info_df = trans_stacked[['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
                                  'yardline_first', 'yardline_100']].drop_duplicates()
         print('...starting dataframe generated...')
         return start_df, info_df
@@ -499,7 +499,7 @@ class DefensiveCleaning:
             print("--- {} minutes elapsed ---".format(round((end_time - start_time)/60,1)))
             print('')
             print("the weeks complete: ", output_df.week.unique())
-        output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox', 'DB', 'LB', 'DL',
+        output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
                                            'yardline_first', 'yardline_100'], columns='posId',values='value')
         output_df.to_csv(f'assets/{fp}')
         print(f"Defensive cleaning complete --- check assets/{fp}")
