@@ -4,6 +4,13 @@ def clean_positional(positions, first = 1, last = 17):
     # reading plays (see play data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
     plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
     games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
+
+    ids_to_remove_df = positions[positions['event'].isin(['qb_spike','punt_fake','field_goal_blocked','field_goal_fake','field_goal_play'])][['gameId','playId']].drop_duplicates()
+    ids_to_remove_df['ids'] = ids_to_remove_df['gameId'].astype(str) + ids_to_remove_df['playId'].astype(str)
+    ids_to_remove_list = ids_to_remove_df['ids'].to_list()
+    
+    positions['gamePlayId'] = positions['gameId'].astype(str) + positions['playId'].astype(str)
+    positions = positions[~positions['gamePlayId'].isin(ids_to_remove_list)]
         
     #to_datetime
     positions['time'] = pd.to_datetime(positions['time'], format='%Y-%m-%dT%H:%M:%S')
