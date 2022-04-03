@@ -31,11 +31,9 @@ class DefensiveCleaning:
         print('..............................initializing')
         if not os.path.exists('Kaggle-Data-Files'):
             get_assets()
-        if not os.path.exists('assets/full_position.csv'):
-            self.weeks_data = get_positional_data()
-        else:
-            self.weeks_data = pd.read_csv('assets/full_position.csv')
+        self.weeks_data = get_positional_data()
         self.play_data = pd.read_csv('Kaggle-Data-Files/plays.csv')
+        self.game_data = pd.read_csv('Kaggle-Data-Files/games.csv')
         print('..data downloaded...')
         self.n_cuts = n_cuts
         self.frameLimit = frameLimit
@@ -137,16 +135,22 @@ class DefensiveCleaning:
 
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
         #print(play_df.shape)
-        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD', 'defendersInTheBox','numberOfPassRushers']]
+        play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD',
+                           'defendersInTheBox','numberOfPassRushers', 'possessionTeam']]
 
         # Merge movement and play-by-play datasets.
-        df = df.merge(play_df, on=['gameId', 'playId'])
-
-        #print(df.columns)
+        df = df.merge(play_df, on=['gameId', 'playId']).merge(
+            self.game_data[['gameId', 'visitorTeamAbbr', 'homeTeamAbbr']], on='gameId')
 
         # Find which teams in the dataframe are offensive vs. defensive.
-        df['off'] = np.where(df['position'].isin(['QB', 'HB', 'FB', 'WR', 'TE', 'C', 'OG', 'OT', 'RB']),
-                             True, False)
+        df['off'] = np.where(((df['team'] == 'away') &
+                                 (df['possessionTeam'] == df['visitorTeamAbbr'])) | ((df['team'] == 'home') &
+                                 (df['possessionTeam'] == df['homeTeamAbbr'])),
+                                 True, False)
+
+        df.drop(['possessionTeam', 'visitorTeamAbbr', 'homeTeamAbbr'], axis=1, inplace=True)
+
+        #print(df.columns)
         #print("check for any offensive positions not mapped", df[~df['off']]['position'].unique())
 
         # Extract starting x and y position.

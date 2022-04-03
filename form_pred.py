@@ -43,9 +43,11 @@ def clean_positional(positions, first = 1, last = 17):
     #bringing in features from games
     starting_pos_play_game = starting_pos_plays.merge(games, on='gameId', how='left')
     #naming which team has the ball as offense or defense
-    starting_pos_play_game['offdef'] = np.where((starting_pos_play_game['team'] == 'away') &
-                                                (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['visitorTeamAbbr']) | (starting_pos_play_game['team'] == 'home') &
-                                                (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['homeTeamAbbr']),
+    starting_pos_play_game['offdef'] = np.where(
+        ((starting_pos_play_game['team'] == 'away') &
+        (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['visitorTeamAbbr'])) |
+        ((starting_pos_play_game['team'] == 'home') &
+        (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['homeTeamAbbr'])),
                                                 'offense', 'defense')
 
     #starting position from offense players 
@@ -111,33 +113,33 @@ def clean_positional(positions, first = 1, last = 17):
 
     # Next, group and extract ranking of positions based on whether team is home or away
     # and the starting position.
-    pos_order = np.where(pos_start['position'] != 'QB',
-                        (pos_start.groupby(['gameId', 'playId', 'position', 'qb_side'])
-                        .apply(lambda x: np.where(x.index.get_level_values(-1) == 'R',
-                                                    find_rank(x, 'y_starting'),
-                                                    find_rank(x, 'y_starting', reverse=True)))
-                        .explode()
-                        .values
-                ),
-                        (pos_start.groupby(['gameId', 'playId', 'position'])
-                        .apply(lambda x: find_rank(x, 'y_starting'))
-                        .explode()
-                        .values
-                        )
-                        )
+    qb_start = pos_start[pos_start['position'] == 'QB']
+    non_qb_start = pos_start[pos_start['position'] != 'QB']
+    left = non_qb_start[non_qb_start['qb_side'] == 'L']
+    right = non_qb_start[non_qb_start['qb_side'] == 'R']
+    l = left.sort_values('y_starting',ascending=False).groupby(['gameId', 'playId', 'position']).apply(
+        lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+    r = right.sort_values('y_starting').groupby(['gameId', 'playId', 'position']).apply(
+        lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+    qb = qb_start.sort_values('y_starting').groupby(['gameId', 'playId', 'position']).apply(
+        lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
+    l['qb_side'] = 'L'
+    r['qb_side'] = 'R'
+    qb['qb_side'] = 'R'
+    full = pd.concat([l, r, qb], axis=0)
+    full['nflId'] = full['nfl_num'].map(lambda x: x[0])
+    full['pos_order'] = full['nfl_num'].map(lambda x: x[1])
+    full.drop('nfl_num', axis=1, inplace=True)
+    start_df_full = pos_start.merge(full, on=['gameId', 'playId', 'nflId', 'position', 'qb_side'])
 
-    # Add column with the position order to the df with indexed starting position.
-    pos_start['pos_order'] = pos_order
-
-    # Add number of position to position label to get position number.
-    pos_start['pos_num'] = np.where(pos_start['position'] != 'QB',
-                                    pos_start['position'].add(pos_start['qb_side']).add(pos_start['pos_order'].astype(str)),
-                                    pos_start['position'].add(pos_start['pos_order'].astype(str)))
+    start_df_full['pos_num'] = np.where(start_df_full['position'] != 'QB',
+                                      start_df_full['position'].add(start_df_full['qb_side']).add(start_df_full['pos_order'].astype(str)),
+                                      start_df_full['position'].add(start_df_full['pos_order'].astype(str)))
 
     #Adding a label of the players position (WR1, WR2). This makes sense from a numerical stand point, but shouldn't be used
     #to classify a team's WR1 WR2 etc.
 
-    starting_off_pers = starting_off_pers.merge(pos_start[['gameId', 'playId', 'nflId', 'pos_num', 'pos_order']],
+    starting_off_pers = starting_off_pers.merge(start_df_full[['gameId', 'playId', 'nflId', 'pos_num', 'pos_order']],
                                                 on=['gameId', 'playId', 'nflId'])
 
     # Convert to matrix of GameID and PlayID. Grab number of yards behind line for each player. 
