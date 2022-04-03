@@ -132,7 +132,7 @@ class DefensiveCleaning:
         df['time_diff'] = df.groupby(['playId', 'gameId', 'displayName'])['time'].diff()
         df['time_diff'][df['time_diff'].isnull()] = pd.Timedelta(0)
         df['time_acc_s'] = df['time_diff'].dt.microseconds.div(1e6)
-        df['time_acc_s'] = df.groupby(['playId', 'gameId', 'nflId'])['time_acc_s'].transform(lambda x: x.cumsum())
+        df['time_acc_s'] = df.groupby(['playId', 'gameId', 'nflId'])['time_acc_s'].transform("cumsum")
         df.drop('time_diff', axis=1, inplace=True)
 
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
@@ -289,16 +289,15 @@ class DefensiveCleaning:
         off_cut_df = full_cut_df[full_cut_df['off']]
         def_cut_df = full_cut_df[~full_cut_df['off']]
         cut_df = def_cut_df.merge(off_cut_df, on=['gameId', 'playId', 'time_cut'], suffixes=('_def', '_off'))
+        cut_df['distance'] = np.linalg.norm(cut_df[['y_dir_qb_def', 'x_behind_line_def']].values -
+                                            cut_df[['y_dir_qb_off', 'x_behind_line_off']].values, axis=1)
+
+        # Find distance to each offensive player and use to find closest player.
+        cut_df['dist_min'] = cut_df.groupby(['gameId', 'playId', 'posId_def', 'time_cut'])['distance'].transform('min')
         print('...time reduced...')
         return df, cut_df
 
     def simple_closest_player(self, df, cut_df):
-
-        # Find distance to each offensive player and use to find closest player.
-        cut_df['distance'] = np.linalg.norm(cut_df[['y_dir_qb_def', 'x_behind_line_def']].values -
-                                            cut_df[['y_dir_qb_off', 'x_behind_line_off']].values, axis=1)
-        cut_df['dist_min'] = cut_df.groupby(['gameId', 'playId', 'posId_def', 'time_cut'])['distance'].transform('min')
-
         cut_df = cut_df[cut_df['distance'] == cut_df['dist_min']]
         cut_df = (cut_df[['gameId', 'playId', 'time_cut', 'posId_def', 'posId_off']]
                   .rename({'posId_def': 'posId', 'posId_off': 'pos_off_closest'}, axis=1))
@@ -351,9 +350,16 @@ class DefensiveCleaning:
 
         return df
 
-    def cosine_closest_player(self, cut_df):
-        cut_even = cut_df[cut_df['time_cut'].map(lambda x: x % 2 == 0)]
-        cut_odd = cut_df[cut_df['time_cut'].map(lambda x: x % 2 == 1)]
+    def cosine_closest_player(self, cut_df, n_closest=3):
+        top_closest_players = (cut_df[cut_df['distance'] == cut_df['dist_min']]
+            .groupby(['gameId', 'playId', 'posId_def', 'time_cut'])['posId_off'].first()
+            .reset_index()
+            .rename({'posId_off': 'posId_off_closest'}, axis=1)
+                               )
+        closest_players = cut_df.sort_values('distance').groupby(
+            ['gameId', 'playId', 'posId_def', 'time_cut']).head(n_closest)
+        cut_even = closest_players[closest_players['time_cut'].map(lambda x: x % 2 == 0)]
+        cut_odd = closest_players[closest_players['time_cut'].map(lambda x: x % 2 == 1)]
         cut_even['prev_cut'] = cut_even['time_cut'].sub(1)
         cuts_even_merged = cut_even.merge(cut_odd,
                                           left_on=['gameId', 'playId', 'posId_def', 'posId_off', 'prev_cut'],
@@ -417,8 +423,11 @@ class DefensiveCleaning:
                                                           'posId_def', 'time_cut_time2'])
         full_cosine = player_closest_cosine[
             ['gameId', 'playId', 'posId_def', 'time_cut_time2', 'posId_off_max', 'posId_off_min']]
+        full_cosine_closest = full_cosine.merge(top_closest_players.rename({
+            'time_cut': 'time_cut_time2'
+            }, axis=1), on=['gameId', 'playId', 'posId_def', 'time_cut_time2'])
         print('...closest player based on cosine similarity calculated...')
-        return full_cosine
+        return full_cosine_closest
 
     def starting_pos(self, full_df):
 
@@ -443,7 +452,11 @@ class DefensiveCleaning:
         print('...starting dataframe generated...')
         return start_df, info_df
 
-    def generate_action_type_df(self, df):
+    def generate_action_type_df(self, full_df, cut_df):
+        cut_df = cut_df[cut_df['distance'] == cut_df['dist_min']]
+        cut_df = (cut_df[['gameId', 'playId', 'time_cut', 'posId_def', 'posId_off']]
+                  .rename({'posId_def': 'posId', 'posId_off': 'pos_off_closest'}, axis=1))
+        df = full_df.merge(cut_df, on=['gameId', 'playId', 'time_cut', 'posId'], how='left')
         # Aggregate columns based on game, play, numbered position, and time quartile.
         df = df[~df['off'] & (df['position'] != 'TE')].groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
             {'pos_off_closest': 'first'}
@@ -475,8 +488,7 @@ class DefensiveCleaning:
         full_df, cut_df = self.reduce_time(week)
         start_df, info_df = self.starting_pos(full_df)
         if self.simMethod == 'distance':
-            simple_df = self.simple_closest_player(full_df, cut_df)
-            action_df = self.generate_action_type_df(simple_df)
+            action_df = self.generate_action_type_df(full_df, cut_df)
         else:
             raise InvalidSimilarityMetricError
         total_df =  pd.concat([action_df,start_df],axis=0)
