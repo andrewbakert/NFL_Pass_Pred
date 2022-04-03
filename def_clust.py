@@ -105,7 +105,7 @@ def prep_data(df, scale=True):
     melt_df['%Z'] = melt_df['Z'] / melt_df['TOT']
     melt_df = melt_df.fillna(0)
 
-    orig_cols =  ['gameId','playId','defendersInTheBox','numberOfPassRushers','DB','LB','DL','yardline_first','yardline_100']
+    orig_cols =  ['gameId','playId','defendersInTheBox','extra_blitzers','on_line_coverage','numberOfPassRushers','DB','LB','DL','yardline_first','yardline_100']
     orig_df = df[orig_cols].set_index(['gameId','playId'])
 
     orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
