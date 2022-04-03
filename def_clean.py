@@ -271,7 +271,8 @@ class DefensiveCleaning:
         df['y_dir_qb'] = df['y_dir'].sub(df['y_starting_qb'])
         df['y_dir_qb_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y_dir_qb'].transform('first')
 
-        Dplayers_to_remove_df = df[(df['position'].isin(['QB','RB','HB','FB','TE','WR'])) & (df['off'] == False)][['gameId','playId']].drop_duplicates()
+        Dplayers_to_remove_df = df[(df['position'].isin(['QB','RB','HB','FB','TE','WR'])) &
+                                   (df['off'] == False)][['gameId','playId']].drop_duplicates()
         Dplayers_to_remove_df['ids'] = Dplayers_to_remove_df['gameId'].astype(str) + Dplayers_to_remove_df['playId'].astype(str)
         df['gamePlayId'] = df['gameId'].astype(str) + df['playId'].astype(str)
         df = df[~df['gamePlayId'].isin(Dplayers_to_remove_df['ids'].to_list())]
