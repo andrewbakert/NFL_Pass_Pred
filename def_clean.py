@@ -208,12 +208,18 @@ class DefensiveCleaning:
             lambda x: list(zip(x['nflId'], range(x.shape[1])))).explode().reset_index().rename({0: 'nfl_num'}, axis=1)
         l['qb_side'] = 'L'
         r['qb_side'] = 'R'
-        qb['qb_side'] = 'R'
-        full = pd.concat([l, r, qb], axis=0)
+        full = pd.concat([l, r], axis=0)
         full['nflId'] = full['nfl_num'].map(lambda x: x[0])
         full['pos_order'] = full['nfl_num'].map(lambda x: x[1])
         full.drop('nfl_num', axis=1, inplace=True)
-        start_df_full = start_df.merge(full, on=['gameId', 'playId', 'nflId', 'position', 'qb_side'])
+
+        qb['nflId'] = qb['nfl_num'].map(lambda x: x[0])
+        qb['pos_order'] = qb['nfl_num'].map(lambda x: x[1])
+        qb.drop('nfl_num', axis=1, inplace=True)
+        qb_full = qb.merge(start_df, on=['gameId', 'playId', 'nflId', 'position'])
+        full_w_qb = pd.concat([full, qb_full[['gameId', 'playId', 'position',
+                                              'qb_side', 'nflId', 'pos_order']]], axis=0)
+        start_df_full = start_df.merge(full_w_qb, on=['gameId', 'playId', 'nflId', 'position', 'qb_side'])
 
         start_df_full['posId'] = np.where(start_df_full['position'] != 'QB',
                                           start_df_full['position'].add(start_df_full['qb_side']).add(start_df_full['pos_order'].astype(str)),
