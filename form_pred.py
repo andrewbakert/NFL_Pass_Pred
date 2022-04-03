@@ -5,16 +5,13 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
     games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
 
-    ids_to_remove_df = positions[positions['event'].isin(['qb_spike','punt_fake','field_goal_blocked','field_goal_fake','field_goal_play'])][['gameId','playId']].drop_duplicates()
-    ids_to_remove_df['ids'] = ids_to_remove_df['gameId'].astype(str) + ids_to_remove_df['playId'].astype(str)
-    ids_to_remove_list = ids_to_remove_df['ids'].to_list()
-
-    positions['gamePlayId'] = positions['gameId'].astype(str) + positions['playId'].astype(str)
-    positions = positions[~positions['gamePlayId'].isin(ids_to_remove_list)]
-
     #to_datetime
     positions['time'] = pd.to_datetime(positions['time'], format='%Y-%m-%dT%H:%M:%S')
     #print(positions.columns)
+
+    #getting special teams plays
+    events_to_remove_df = positions[positions['event'].isin(['qb_spike','punt_fake','field_goal_blocked','field_goal_fake','field_goal_play'])][['gameId','playId']].drop_duplicates()
+    events_to_remove_df['ids'] = events_to_remove_df['gameId'].astype(str) + events_to_remove_df['playId'].astype(str)
 
     if (first != 1) or (last != 17):
         week_game_id = list(games[games['week'].isin(np.arange(first,last+1))]['gameId'].drop_duplicates())
@@ -49,6 +46,9 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
         ((starting_pos_play_game['team'] == 'home') &
          (starting_pos_play_game['possessionTeam'] == starting_pos_play_game['homeTeamAbbr'])),
         'offense', 'defense')
+
+    Dplayers_to_remove_df = starting_pos_play_game[(starting_pos_play_game['position'].isin(['CB','SS','FS','DL','DE','DT','DB','LB','MLB','OLB','ILB','NT','S'])) & (starting_pos_play_game['offdef'].isin(['offense']))][['gameId','playId']].drop_duplicates()
+    Dplayers_to_remove_df['ids'] = starting_pos_play_game['gameId'].astype(str) + starting_pos_play_game['playId'].astype(str)
 
     #starting position from offense players
     starting_off = starting_pos_play_game[starting_pos_play_game['offdef'] == 'offense']
@@ -173,6 +173,11 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     data = starting_pos.merge(starting_off_pers[['gameId', 'playId', 'offenseFormation']].drop_duplicates(),
                               left_index=True,
                               right_on=['gameId', 'playId'])
+
+    ids_to_remove_list = events_to_remove_df['ids'].to_list() + Dplayers_to_remove_df['ids'].to_list() 
+
+    data['gamePlayId'] = data['gameId'].astype(str) + data['playId'].astype(str)
+    data = data[~data['gamePlayId'].isin(ids_to_remove_list)]
 
     data.dropna(axis=0, inplace=True)
     data = data.loc[:, ~np.all(data == 0, axis=0)]

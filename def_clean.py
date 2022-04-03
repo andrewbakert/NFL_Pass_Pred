@@ -115,6 +115,7 @@ class DefensiveCleaning:
         #short_df.to_csv('assets/short_plays.csv')
 
         pos_df = pos_df[pos_df['frameCount'] >= self.frameLimit]
+
         print('...filtered...')
         return pos_df.drop(columns=['before_pass','after_snap'])
 
@@ -269,6 +270,11 @@ class DefensiveCleaning:
         # Define y coordinates as relative to QB.
         df['y_dir_qb'] = df['y_dir'].sub(df['y_starting_qb'])
         df['y_dir_qb_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y_dir_qb'].transform('first')
+
+        Dplayers_to_remove_df = df[(df['position'].isin(['QB','RB','HB','FB','TE','WR'])) & (df['off'] == False)][['gameId','playId']].drop_duplicates()
+        Dplayers_to_remove_df['ids'] = Dplayers_to_remove_df['gameId'].astype(str) + Dplayers_to_remove_df['playId'].astype(str)
+        df['gamePlayId'] = df['gameId'].astype(str) + df['playId'].astype(str)
+        df = df[~df['gamePlayId'].isin(Dplayers_to_remove_df['ids'].to_list())]
 
         # The distribution looks centered around 0, as would be expected given that the QB lines up in the center.
         #plot_histogram(df, 'y_dir_qb', 50, 'off', 'y_qb_dist')
