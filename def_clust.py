@@ -12,12 +12,16 @@ from sklearn import metrics
 #df = pd.read_csv('assets/def_clean_output.csv')
 
 # %%
-def optimize_pca_components(df):
+def optimize_pca_components(df, n=0):
     pca = PCA()
     pca.fit(df)
     evr = pca.explained_variance_ratio_.cumsum()
     n_comps = len(np.argwhere(evr <= 0.99)) + 1
     n_comps_opt = len(np.argwhere(evr <= 0.8)) + 1
+
+    if n != 0:
+        n_comps_opt = n
+
     plt.figure(figsize=(6,6))
     plt.plot(range(1,n_comps+1), evr[:n_comps], marker='o', linestyle='--')
     plt.title('Explained Variance by Components')
@@ -73,7 +77,8 @@ def kmeans_clusters_and_dataframe(scores_pca, df, n_clusters, filename):
     for i in range(1,n+1):
         comp_labels.append('Component '+ str(i))
 
-    seg_list = ['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth']
+    seg_list = ['first','second','third','fourth','fifth','sixth','seventh','eighth','ninth','tenth','eleventh','twelfth',
+        'thirteenth','fourteenth','fifteenth','sixteenth','seventeenth','eighteenth','nineteenth','twentieth']
     seg_dict = {}
     
     for i in range(0,n_clusters):
@@ -91,7 +96,7 @@ def kmeans_clusters_and_dataframe(scores_pca, df, n_clusters, filename):
     return df_seg
 
 # %%
-def prep_data(df, scale=True):
+def prep_data(df, cols, scale=True):
     actions = [action for action in df.columns if '_act' in action]
     melt_cols = ['gameId','playId'] + actions
 
@@ -109,6 +114,9 @@ def prep_data(df, scale=True):
     orig_df = df[orig_cols].set_index(['gameId','playId'])
 
     orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
+
+    if cols != 'all':
+        orig_df = orig_df[cols]
     
     if scale == True:
         X = StandardScaler().fit_transform(orig_df)
@@ -151,10 +159,10 @@ def kmeans_visual(df, comp_x, comp_y):
     plt.show()
 
 # %%
-def return_pca_and_clusters(df, n_clusters=5):
+def return_pca_and_clusters(df, columns='all', n_clusters=5, pca_comps=0):
 
-    X, pca_df = prep_data(df, scale=True)
-    n_comps = optimize_pca_components(X)
+    X, pca_df = prep_data(df, columns, scale=True)
+    n_comps = optimize_pca_components(X, pca_comps)
     scores_pca, comps_pca = optimize_kmeans_clusters_with_pca(X, n_comps)
     plot_pca_heatmap(comps_pca, pca_df)
     df_seg = kmeans_clusters_and_dataframe(scores_pca, pca_df, n_clusters, 'def_clust_output.csv')
