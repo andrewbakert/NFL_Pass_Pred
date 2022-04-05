@@ -29,7 +29,7 @@ def get_positional_data():
     import pandas as pd
     import numpy as np
     import os
-
+    
     dir = 'assets'
     fp = dir + '/full_position.csv'
     cwd = str(os.getcwd())
@@ -53,5 +53,4 @@ def get_positional_data():
         positions.to_csv(fp, index=False)
         print(f'positional data written to {fp}')
         print('returning positional data.')
-    
     return positions
