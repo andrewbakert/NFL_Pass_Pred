@@ -46,10 +46,6 @@ class TrainTestNFL:
         #merge y with X gameIds so the data matches up
         self.y = pd.merge(self.y, self.X[['gameId','playId','week']], how='inner', left_on = ['gameId','playId','week'], right_on = ['gameId','playId','week']).fillna(0)
 
-
-        #Additional Features
-        self.X['yardsToGo'] = self.X['yardline_first_dir'] - self.X['yardline_100_dir']
-
         if first not in self.X['week'].to_list():
             raise Exception(f'Starting week {first} not in df')  
 
