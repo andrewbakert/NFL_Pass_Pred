@@ -27,11 +27,14 @@ class InvalidSimilarityMetricError(Exception):
         super().__init__(self.message)
 
 class DefensiveCleaning:
-    def __init__(self, n_cuts, frameLimit=11, simMethod='distance'):
+    def __init__(self, weeks_data=None, n_cuts=11, frameLimit=11, simMethod='distance'):
         print('..............................initializing')
         if not os.path.exists('Kaggle-Data-Files'):
             get_assets()
-        self.weeks_data = get_positional_data()
+        if not weeks_data:
+            self.weeks_data = get_positional_data()
+        else:
+            self.weeks_data = weeks_data
         self.play_data = pd.read_csv('Kaggle-Data-Files/plays.csv')
         self.game_data = pd.read_csv('Kaggle-Data-Files/games.csv')
         print('..data downloaded...')
@@ -450,12 +453,12 @@ class DefensiveCleaning:
 
         trans_df = full_df[['gameId', 'playId', 'posId', 'y_dir_qb_starting', 'x_behind_line_starting',
                             'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL', 'off',
-                            'yardline_100', 'yardline_first']].drop_duplicates()
+                            'yardline_100_dir', 'yardline_first_dir']].drop_duplicates()
         trans_df_def = trans_df[~trans_df['off']]
         trans_df_def.drop('off', axis=1, inplace=True)
         trans_stacked = (trans_df_def.set_index(['gameId', 'playId', 'posId',
                                                  'defendersInTheBox','numberOfPassRushers','DB', 'LB', 'DL',
-                                                 'yardline_first', 'yardline_100'])
+                                                 'yardline_first_dir', 'yardline_100_dir'])
                          .stack()
                          .reset_index()
                          .rename({'level_10': 'starting', 0: 'value'}, axis=1)
@@ -465,7 +468,7 @@ class DefensiveCleaning:
         trans_stacked.drop('starting', axis=1, inplace=True)
         start_df = trans_stacked[['gameId', 'playId', 'posId', 'value']]
         info_df = trans_stacked[['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
-                                 'yardline_first', 'yardline_100']].drop_duplicates()
+                                 'yardline_first_dir', 'yardline_100_dir']].drop_duplicates()
         print('...starting dataframe generated...')
         return start_df, info_df
 
@@ -529,7 +532,7 @@ class DefensiveCleaning:
             print('')
             print("the weeks complete: ", output_df.week.unique())
         output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
-                                           'yardline_first', 'yardline_100'], columns='posId',values='value')
+                                           'yardline_first_dir', 'yardline_100_dir'], columns='posId',values='value')
         output_df.to_csv(f'assets/{fp}')
         print(f"Defensive cleaning complete --- check assets/{fp}")
         return output_df

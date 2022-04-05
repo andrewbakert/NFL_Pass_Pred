@@ -83,27 +83,6 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     starting_off_pers['qb_side'] = np.where(starting_off_pers['y_starting'].gt(starting_off_pers['y_qb']), 'R', 'L')
     starting_off_pers['y_starting_qb'] = starting_off_pers['y_starting'].sub(starting_off_pers['y_qb'])
 
-    def find_rank(df, col, reverse=False):
-        """
-        Find the ranking of a series based on values.
-        :param df: Dataframe for ranking; pd.DataFrame
-        :param col: Column from dataframe to rank; str
-        :param reverse: Flag of whether to reverse rank direction; bool
-        :return: Array with rankings; np.array
-        """
-        # Extract series and use arsort to find rankings.
-        ser = df[col]
-        temp = np.argsort(ser)
-
-        # Reverse direction based on flag.
-        if reverse:
-            temp = temp[::-1]
-
-        # Fill ranking array.
-        ranks = np.empty_like(temp)
-        ranks[temp] = np.arange(ser.shape[0])
-        return ranks
-
     # Find the order of positions based on offensive direction.
     # First, group and extract first value of the y starting position and direction.
     pos_start = (starting_off_pers

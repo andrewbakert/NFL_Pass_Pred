@@ -1,3 +1,6 @@
+import os
+import pickle
+
 class TrainTestNFL:
     def __init__(self,off = None, dfc = None, y = None):
         self.ofc = off
@@ -45,7 +48,7 @@ class TrainTestNFL:
 
 
         #Additional Features
-        self.X['yardsToGo'] = self.X['yardline_100'] - self.X['yardline_first'] 
+        self.X['yardsToGo'] = self.X['yardline_first_dir'] - self.X['yardline_100_dir']
 
         if first not in self.X['week'].to_list():
             raise Exception(f'Starting week {first} not in df')  
@@ -64,7 +67,6 @@ class TrainTestNFL:
             self.X_test = self.X[(self.X['week'] > last)]
             self.y_train = self.y[(self.y['week'] >= first) & (self.y['week'] <= last)]
             self.y_test = self.y[(self.y['week'] > last)]
-            
         return self.X_train, self.X_test, self.y_train, self.y_test
 
                 
@@ -74,10 +76,9 @@ class TrainTestNFL:
         from sklearn.preprocessing import StandardScaler
         from sklearn.linear_model import LogisticRegression
         from sklearn.model_selection import cross_val_score
-        
+
         from sklearn.metrics import confusion_matrix
         from sklearn.model_selection import GridSearchCV
-
 
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(self.X_train[self.ofc.columns].drop('offensiveFormation', axis = 1))
@@ -85,11 +86,11 @@ class TrainTestNFL:
 
         log_reg = LogisticRegression(max_iter=10000)
         cross_val_score(log_reg, X_train_scaled, self.X_train['offensiveFormation'], cv=5)
-        
+
         params_lr = {'C': [10**x for x in range(-4, 4)]}
         grid_lr = GridSearchCV(log_reg, params_lr, cv=3, scoring='f1_micro')
         grid_lr.fit(X_train_scaled, self.X_train['offensiveFormation'])
-        grid_lr.best_score_
+        print('Model best score:', grid_lr.best_score_)
 
         self.X_test['offenseFormationPrediction'] = grid_lr.predict(X_test_scaled)
         self.X_train['offenseFormationPrediction'] = grid_lr.predict(X_train_scaled)
