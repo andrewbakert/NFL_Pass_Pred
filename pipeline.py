@@ -81,25 +81,33 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         self.scoring = scoring
 
     def fit(self, X, y=None):
-        if os.path.exists(self.model_fp):
+        if self.model_fp and os.path.exists(self.model_fp):
             with open(self.model_fp, 'rb') as model:
                 self.grid = pickle.load(model)
             X_train = X.drop('offenseFormation', axis=1)
+            self.X_cols = X_train.columns
             self.scaler = StandardScaler()
             self.scaler.fit_transform(X_train)
         else:
             self.grid = GridSearchCV(self.model, param_grid=self.model_params, cv=self.cv,
                                      scoring=self.scoring)
             X_train = X.drop('offenseFormation', axis=1)
+            X_train_in = pd.DataFrame()
+            for col in self.X_cols:
+                if col in X_train.columns:
+                    X_train_in[col] = X_train[col]
+                else:
+                    X_train[col] = 0
             y_train = X['offenseFormation']
             self.scaler = StandardScaler()
-            X_train_scaled = self.scaler.fit_transform(X_train)
+            X_train_scaled = self.scaler.fit_transform(X_train_in)
             self.grid.fit(X_train_scaled, y_train)
             base = self.model_fp.split('/')[0]
-            if not os.path.exists(base):
-                os.mkdir(base)
-            with open(self.model_fp, 'wb') as model:
-                pickle.dump(self.grid, model)
+            if self.model_fp:
+                if not os.path.exists(base):
+                    os.mkdir(base)
+                with open(self.model_fp, 'wb') as model:
+                    pickle.dump(self.grid, model)
         print("Offensive formation model fitted")
         return self
 
@@ -134,10 +142,12 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         melt_df['%Z'] = melt_df['Z'] / melt_df['TOT']
         melt_df = melt_df.fillna(0)
 
-        self.orig_cols =  ['gameId','playId','defendersInTheBox','numberOfPassRushers','DB','LB','DL','yardline_first_dir','yardline_100_dir']
+        self.orig_cols =  ['gameId','playId','defendersInTheBox','numberOfPassRushers','DB','LB','DL',
+                           'yardline_first_dir','yardline_100_dir']
         orig_df = X[self.orig_cols].set_index(['gameId','playId'])
 
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
+        print(orig_df)
         if self.cols != 'all':
             orig_df = orig_df[self.cols]
         self.scaler = StandardScaler()
