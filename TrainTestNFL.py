@@ -42,10 +42,13 @@ class TrainTestNFL:
 
         #Merge Offense and Defense to form X
         self.X = pd.merge(self.ofc, self.dfc, how='inner', left_on = ['gameId','playId','week'],
-                          right_on = ['gameId','playId','week'])
+                          right_on = ['gameId','playId','week']).fillna(0)
 
         #merge y with X gameIds so the data matches up
         self.y = pd.merge(self.y, self.X[['gameId','playId','week']], how='inner', left_on = ['gameId','playId','week'], right_on = ['gameId','playId','week']).fillna(0)
+
+        #Merge X back with Y so the data matches up
+        self.X = pd.merge(self.X, self.y[['gameId','playId','week']], how='inner', left_on = ['gameId','playId','week'], right_on = ['gameId','playId','week']).fillna(0)
 
         if first not in self.X['week'].to_list():
             raise Exception(f'Starting week {first} not in df')  
