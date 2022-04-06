@@ -42,7 +42,7 @@ class TrainTestNFL:
 
         #Merge Offense and Defense to form X
         self.X = pd.merge(self.ofc, self.dfc, how='inner', left_on = ['gameId','playId','week'],
-                          right_on = ['gameId','playId','week']).dropna(axis=1)
+                          right_on = ['gameId','playId','week'])
 
         #merge y with X gameIds so the data matches up
         self.y = pd.merge(self.y, self.X[['gameId','playId','week']], how='inner', left_on = ['gameId','playId','week'], right_on = ['gameId','playId','week']).fillna(0)

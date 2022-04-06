@@ -108,7 +108,6 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
                     os.mkdir(base)
                 with open(self.model_fp, 'wb') as model:
                     pickle.dump(self.grid, model)
-        print("Offensive formation model fitted")
         return self
 
     def transform(self, X):
@@ -117,7 +116,6 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         y = self.grid.predict(X_scaled)
         X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
         X_scaled_df['offenseFormation'] = y
-        print("Offensive formation predicted")
         return X_scaled_df
 
 
@@ -131,8 +129,9 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         actions = [action for action in X.columns if '_act' in action]
         self.melt_cols = ['gameId','playId'] + actions
 
-        melt_df = X[self.melt_cols]
-        melt_df = melt_df.melt(['gameId','playId']).dropna()
+        melt_df = X[self.melt_cols].copy()
+        melt_df = melt_df.melt(['gameId','playId'])
+        melt_df = melt_df[melt_df['value'] != 0]
         melt_df = melt_df.groupby(['gameId','playId','value']).count()
         melt_df = melt_df.reset_index().pivot(index=['gameId','playId'],
                                               columns='value',values='variable').fillna(0)
@@ -144,30 +143,31 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
 
         self.orig_cols =  ['gameId','playId','defendersInTheBox','numberOfPassRushers','DB','LB','DL',
                            'yardline_first_dir','yardline_100_dir']
-        orig_df = X[self.orig_cols].set_index(['gameId','playId'])
+        orig_df = X[self.orig_cols].copy()
 
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
-        print(orig_df)
         if self.cols != 'all':
             orig_df = orig_df[self.cols]
         self.scaler = StandardScaler()
-        X = self.scaler.fit_transform(orig_df)
+        X_scaled = self.scaler.fit_transform(orig_df.drop(['gameId', 'playId'], axis=1))
         self.pca = PCA(n_components=self.pca_variance)
-        scores_pca = self.pca.fit_transform(X)
+        scores_pca = self.pca.fit_transform(X_scaled)
         self.kmeans_pca = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42)
-        self.kmeans_pca.fit(scores_pca)
-        print('KMeans and PCA fitted')
+        kmeans_vals = self.kmeans_pca.fit_transform(scores_pca)
+        self.kmeans_scaler = StandardScaler()
+        self.kmeans_scaler.fit(kmeans_vals)
         return self
 
 
-    def transform(self, X):
+    def transform(self, X, y=None):
         melt_df = pd.DataFrame()
         for col in self.melt_cols:
             if col in X.columns:
-                melt_df[col] = X[col]
+                melt_df[col] = X[col].copy()
             else:
                 melt_df[col] = np.nan
         melt_df = melt_df.melt(['gameId','playId']).dropna()
+        melt_df = melt_df[melt_df['value'] != 0]
         melt_df = melt_df.groupby(['gameId','playId','value']).count()
         melt_df = melt_df.reset_index().pivot(index=['gameId','playId'],
                                               columns='value',values='variable').fillna(0)
@@ -176,20 +176,29 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         melt_df['%M'] = melt_df['M'] / melt_df['TOT']
         melt_df['%Z'] = melt_df['Z'] / melt_df['TOT']
         melt_df = melt_df.fillna(0)
-        orig_df = X[self.orig_cols].set_index(['gameId','playId'])
+        orig_df = X[self.orig_cols].copy()
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
         if self.cols != 'all':
             orig_df = orig_df[self.cols]
-        X = self.scaler.transform(orig_df)
+        X_scaled = self.scaler.transform(orig_df.drop(['gameId', 'playId'], axis=1))
 
-        scores_pca = self.pca.transform(X)
+        scores_pca = self.pca.transform(X_scaled)
         kmeans_vals = self.kmeans_pca.transform(scores_pca)
-        kmeans_vals_df = pd.DataFrame(kmeans_vals, columns=[f'cluster_{i}'
-                                                            for i in range(kmeans_vals.shape[1])])
+        kmeans_vals_scaled = self.kmeans_scaler.transform(kmeans_vals)
+        kmeans_vals_df = pd.DataFrame(kmeans_vals_scaled, columns=[f'cluster_{i}'
+                                                                   for i in range(kmeans_vals.shape[1])])
         pca_df = pd.DataFrame(scores_pca, columns=[f'pc_{i}' for i in range(scores_pca.shape[1])])
-        df_seg = pd.concat([orig_df.reset_index()[['gameId','playId']], kmeans_vals_df, pca_df], axis=1)
-        df_seg['cluster'] = self.kmeans_pca.labels_
-        df_seg.drop(['gameId', 'playId'], axis=1, inplace=True)
-        print("Defensive position transformed")
+        X = pd.concat([orig_df.reset_index()[['gameId','playId']], kmeans_vals_df, pca_df], axis=1)
+        X['cluster'] = self.kmeans_pca.predict(scores_pca)
+        X.drop(['gameId', 'playId'], axis=1, inplace=True)
+        return X
 
-        return df_seg
+class FeatureSelector(BaseEstimator, TransformerMixin):
+    def __init__(self, columns):
+        self.columns = columns
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X, y=None):
+        return X[self.columns]
