@@ -97,15 +97,10 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
             self.grid = GridSearchCV(self.model, param_grid=self.model_params, cv=self.cv,
                                      scoring=self.scoring)
             X_train = X.drop('offenseFormation', axis=1)
-            X_train_in = pd.DataFrame()
-            for col in self.X_cols:
-                if col in X_train.columns:
-                    X_train_in[col] = X_train[col]
-                else:
-                    X_train[col] = 0
             y_train = X['offenseFormation']
             self.scaler = StandardScaler()
-            X_train_scaled = self.scaler.fit_transform(X_train_in)
+            self.X_cols = X_train.columns
+            X_train_scaled = self.scaler.fit_transform(X_train)
             self.grid.fit(X_train_scaled, y_train)
             base = self.model_fp.split('/')[0]
             if self.model_fp:
@@ -117,7 +112,13 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
 
     def transform(self, X):
         X = X.drop('offenseFormation', axis=1)
-        X_scaled = self.scaler.transform(X)
+        X_in = pd.DataFrame()
+        for col in self.X_cols:
+            if col in X.columns:
+                X_in[col] = X[col]
+            else:
+                X_in[col] = 0
+        X_scaled = self.scaler.transform(X_in)
         y = self.grid.predict(X_scaled)
         X_scaled_df = pd.DataFrame(X_scaled, columns=X.columns)
         X_scaled_df['offenseFormation'] = y
@@ -227,7 +228,7 @@ class FullPipeWrapper(PrepPipe):
         self.y_test_x = y_test.iloc[:, 0]
         self.y_test_y = y_test.iloc[:, 1]
         self.off_col = self.train_test.ofc.drop(['gameId', 'playId', 'gamePlayId', 'week'], axis=1).columns
-        self.def_col = self.train_test.dfc.drop(['week', 'index'], axis=1).columns
+        self.def_col = self.train_test.dfc.drop(['week'], axis=1).columns
         self.off_info_cols = self.off_col[-9:]
         self.off_form_cols = self.off_col[:-9]
 

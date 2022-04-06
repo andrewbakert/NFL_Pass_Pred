@@ -31,7 +31,7 @@ class DefensiveCleaning:
         print('..............................initializing')
         if not os.path.exists('Kaggle-Data-Files'):
             get_assets()
-        if not weeks_data:
+        if type(weeks_data) != pd.DataFrame:
             self.weeks_data = get_positional_data()
         else:
             self.weeks_data = weeks_data
@@ -533,6 +533,6 @@ class DefensiveCleaning:
             print("the weeks complete: ", output_df.week.unique())
         output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
                                            'yardline_first_dir', 'yardline_100_dir'], columns='posId',values='value')
-        output_df.to_csv(f'assets/{fp}')
+        output_df.to_csv(fp)
         print(f"Defensive cleaning complete --- check assets/{fp}")
         return output_df
