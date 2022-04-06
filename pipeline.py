@@ -66,7 +66,7 @@ class PrepPipe:
 
 
 class OffensiveFormation(BaseEstimator, TransformerMixin):
-    def __init__(self, model=None, model_params=None, model_fp='models/off_form.pkl',
+    def __init__(self, model=False, model_params=False, model_fp='models/off_form.pkl',
                  cv=5, scoring='f1_micro'):
         if not model:
             self.model = LogisticRegression(max_iter=10000)
@@ -114,8 +114,8 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
 
 
 class DefensiveClustering(BaseEstimator, TransformerMixin):
-    def __init__(self, columns='all', n_clusters=5, pca_variance=0.8):
-        self.columns = columns
+    def __init__(self, cols='all', n_clusters=5, pca_variance=0.8):
+        self.cols = cols
         self.n_clusters = n_clusters
         self.pca_variance = pca_variance
 
@@ -138,6 +138,8 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         orig_df = X[self.orig_cols].set_index(['gameId','playId'])
 
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
+        if self.cols != 'all':
+            orig_df = orig_df[self.cols]
         self.scaler = StandardScaler()
         X = self.scaler.fit_transform(orig_df)
         self.pca = PCA(n_components=self.pca_variance)
@@ -166,6 +168,8 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         melt_df = melt_df.fillna(0)
         orig_df = X[self.orig_cols].set_index(['gameId','playId'])
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
+        if self.cols != 'all':
+            orig_df = orig_df[self.cols]
         X = self.scaler.transform(orig_df)
 
         scores_pca = self.pca.transform(X)
@@ -177,14 +181,5 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         df_seg['cluster'] = self.kmeans_pca.labels_
         df_seg.drop(['gameId', 'playId'], axis=1, inplace=True)
         print("Defensive position transformed")
+
         return df_seg
-
-
-class StandardScalerColumns(BaseEstimator, TransformerMixin):
-    def fit(self, X, y=None):
-        self.means = X.mean(axis=0).values.reshape(1, -1)
-        self.stds = X.std(axis=0).values.reshape(1, -1)
-        return self
-    def transform(self, X):
-        X_scaled = (X - self.means) / self.stds
-        return X_scaled
