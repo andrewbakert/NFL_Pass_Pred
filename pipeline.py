@@ -16,7 +16,7 @@ importlib.reload(TrainTestNFL)
 # IMPORTING LOCAL PACKAGES
 from get_data import get_assets, get_positional_data
 from form_pred import clean_positional
-from ball_movement import ball_quadrants, make_quad_chart
+from ball_movement import ball_quadrants
 from def_clean import DefensiveCleaning
 from TrainTestNFL import TrainTestNFL
 import os
@@ -29,6 +29,11 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import FunctionTransformer
+import pandas as pd
 
 class PrepPipe:
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
@@ -202,3 +207,62 @@ class FeatureSelector(BaseEstimator, TransformerMixin):
 
     def transform(self, X, y=None):
         return X[self.columns]
+
+class SideNotValidError(Exception):
+    def __init__(self, message="Side not valid. Choose 'off', 'def', or 'both'"):
+        self.message = message
+        super().__init__(self.message)
+
+
+class FullPipeWrapper(PrepPipe):
+    def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
+                 simMethod='distance', quad_num=4, def_fp='assets/def_clean_output.csv'):
+        super().__init__(first, last, n_cuts, frameLimit, simMethod,
+                         quad_num, def_fp)
+
+    def extract_data_cols(self):
+        self.X_train, self.X_test, y_train, y_test = self.clean_data()
+        self.y_train_x = y_train.iloc[:, 0]
+        self.y_train_y = y_train.iloc[:, 1]
+        self.y_test_x = y_test.iloc[:, 0]
+        self.y_test_y = y_test.iloc[:, 1]
+        self.off_col = self.train_test.ofc.drop(['gameId', 'playId', 'gamePlayId', 'week'], axis=1).columns
+        self.def_col = self.train_test.dfc.drop(['week', 'index'], axis=1).columns
+        self.off_info_cols = self.off_col[-9:]
+        self.off_form_cols = self.off_col[:-9]
+
+    def build_pipe(self, side='both', model=LogisticRegression()):
+        if not hasattr(self, "X_train"):
+            self.extract_data_cols()
+        off_pre_one_pipe = ColumnTransformer([('info_scale', StandardScaler(), self.off_info_cols),
+                                              ('form', OffensiveFormation(), self.off_form_cols),
+                                              ])
+        off_pre_one_add_col = Pipeline([('off_pre_one', off_pre_one_pipe),
+                                        ('func_trans', FunctionTransformer(lambda x:
+                                                                           pd.DataFrame(x,
+                                                                                        columns=list(self.off_info_cols) + list(self.off_form_cols)))),
+                                        ('select_cols', FeatureSelector(list(self.off_info_cols) +
+                                                                        list(self.off_form_cols)))])
+
+        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(), [-1])], remainder='passthrough')
+        off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
+
+        def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
+        def_full_pipe = Pipeline([('def_clust', DefensiveClustering()), ('def_clust_one', def_one_pipe)])
+
+        full_pipe = ColumnTransformer([('off', off_full_pipe, self.off_col),
+                                       ('def', def_full_pipe, self.def_col)])
+
+        if side == 'off':
+            # Offensive pipeline alone
+            pipe = Pipeline([('off_full_pipe', off_full_pipe), ('model', model)])
+        elif side == 'def':
+            pipe = Pipeline([('def_full_pipe', def_full_pipe),
+                             ('model', model)])
+        elif side == 'both':
+            pipe = Pipeline([('full_pipe', full_pipe),
+                             ('to_float', FunctionTransformer(lambda x: x.astype(float))),
+                             ('model', model)])
+        else:
+            raise SideNotValidError
+        return pipe
