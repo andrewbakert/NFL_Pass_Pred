@@ -72,6 +72,7 @@ class PrepPipe:
 
 class OffensiveFormation(BaseEstimator, TransformerMixin):
     def __init__(self, model=False, model_params=False, model_fp='models/off_form.pkl',
+                 scaler_fp="models/off_scaler.pkl",
                  cv=5, scoring='f1_micro'):
         if not model:
             self.model = LogisticRegression(max_iter=10000)
@@ -82,6 +83,7 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         else:
             self.model_params = model_params
         self.model_fp = model_fp
+        self.scaler_fp = scaler_fp
         self.cv = cv
         self.scoring = scoring
 
@@ -89,10 +91,10 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         if self.model_fp and os.path.exists(self.model_fp):
             with open(self.model_fp, 'rb') as model:
                 self.grid = pickle.load(model)
+            with open(self.scaler_fp, "rb") as scaler:
+                self.scaler = pickle.load(scaler)
             X_train = X.drop('offenseFormation', axis=1)
             self.X_cols = X_train.columns
-            self.scaler = StandardScaler()
-            self.scaler.fit_transform(X_train)
         else:
             self.grid = GridSearchCV(self.model, param_grid=self.model_params, cv=self.cv,
                                      scoring=self.scoring)
