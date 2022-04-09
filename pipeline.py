@@ -156,8 +156,10 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
         if self.cols != 'all':
             orig_df = orig_df[self.cols]
+        else:
+            orig_df.drop(['gameId', 'playId'], axis=1, inplace=True)
         self.scaler = StandardScaler()
-        X_scaled = self.scaler.fit_transform(orig_df.drop(['gameId', 'playId'], axis=1))
+        X_scaled = self.scaler.fit_transform(orig_df)
         self.pca = PCA(n_components=self.pca_variance)
         scores_pca = self.pca.fit_transform(X_scaled)
         self.kmeans_pca = KMeans(n_clusters=self.n_clusters, init='k-means++', random_state=42)
@@ -188,7 +190,9 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
         if self.cols != 'all':
             orig_df = orig_df[self.cols]
-        X_scaled = self.scaler.transform(orig_df.drop(['gameId', 'playId'], axis=1))
+        else:
+            orig_df.drop(['gameId', 'playId'], axis=1, inplace=True)
+        X_scaled = self.scaler.transform(orig_df)
 
         scores_pca = self.pca.transform(X_scaled)
         kmeans_vals = self.kmeans_pca.transform(scores_pca)
@@ -196,9 +200,8 @@ class DefensiveClustering(BaseEstimator, TransformerMixin):
         kmeans_vals_df = pd.DataFrame(kmeans_vals_scaled, columns=[f'cluster_{i}'
                                                                    for i in range(kmeans_vals.shape[1])])
         pca_df = pd.DataFrame(scores_pca, columns=[f'pc_{i}' for i in range(scores_pca.shape[1])])
-        X = pd.concat([orig_df.reset_index()[['gameId','playId']], kmeans_vals_df, pca_df], axis=1)
+        X = pd.concat([orig_df, kmeans_vals_df, pca_df], axis=1)
         X['cluster'] = self.kmeans_pca.predict(scores_pca)
-        X.drop(['gameId', 'playId'], axis=1, inplace=True)
         return X
 
 class FeatureSelector(BaseEstimator, TransformerMixin):
@@ -231,8 +234,9 @@ class FullPipeWrapper(PrepPipe):
         self.y_test_y = y_test.iloc[:, 1]
         self.off_col = self.train_test.ofc.drop(['gameId', 'playId', 'gamePlayId', 'week'], axis=1).columns
         self.def_col = self.train_test.dfc.drop(['week'], axis=1).columns
-        self.off_info_cols = self.off_col[-9:]
-        self.off_form_cols = self.off_col[:-9]
+        form_idx = self.off_col.get_loc('offensiveFormation')
+        self.off_info_cols = self.off_col[form_idx+1:]
+        self.off_form_cols = self.off_col[:form_idx+1]
 
     def build_pipe(self, side='both', model=LogisticRegression()):
         if not hasattr(self, "X_train"):
@@ -247,7 +251,8 @@ class FullPipeWrapper(PrepPipe):
                                         ('select_cols', FeatureSelector(list(self.off_info_cols) +
                                                                         list(self.off_form_cols)))])
 
-        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(), [-1])], remainder='passthrough')
+        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(), ['offensiveFormation',
+                                                                              'team_name'])], remainder='passthrough')
         off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
 
         def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
