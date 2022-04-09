@@ -237,22 +237,24 @@ class FullPipeWrapper(PrepPipe):
         form_idx = self.off_col.get_loc('offenseFormation')
         self.off_info_cols = self.off_col[form_idx+1:]
         self.off_form_cols = self.off_col[:form_idx+1]
+        self.off_cat_info_cols = ['down', 'possessionTeam']
+        self.off_info_cols = self.off_info_cols[~np.isin(self.off_info_cols, self.off_cat_info_cols)]
 
     def build_pipe(self, side='both', model=LogisticRegression()):
         if not hasattr(self, "X_train"):
             self.extract_data_cols()
         off_pre_one_pipe = ColumnTransformer([('info_scale', StandardScaler(), self.off_info_cols),
                                               ('form', OffensiveFormation(), self.off_form_cols),
-                                              ])
+                                              ], remainder='passthrough')
         off_pre_one_add_col = Pipeline([('off_pre_one', off_pre_one_pipe),
                                         ('func_trans', FunctionTransformer(lambda x:
                                                                            pd.DataFrame(x,
-                                                                                        columns=list(self.off_info_cols) + list(self.off_form_cols)))),
-                                        ('select_cols', FeatureSelector(list(self.off_info_cols) +
-                                                                        list(self.off_form_cols)))])
+                columns=list(self.off_info_cols) +list(self.off_form_cols) + list(self.off_cat_info_cols)))),
+                                        ('select_cols', FeatureSelector(
+                    list(self.off_info_cols) + list(self.off_form_cols) + list(self.off_cat_info_cols)))])
 
         form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(),
-                                ['offensiveFormation', 'down' 'team_name'])], remainder='passthrough')
+                                self.off_cat_info_cols + ['offenseFormation'])], remainder='passthrough')
         off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
 
         def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
