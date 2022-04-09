@@ -243,13 +243,15 @@ class FullPipeWrapper(PrepPipe):
     def build_pipe(self, side='both', model=LogisticRegression()):
         if not hasattr(self, "X_train"):
             self.extract_data_cols()
-        off_pre_one_pipe = ColumnTransformer([('info_scale', StandardScaler(), self.off_info_cols),
-                                              ('form', OffensiveFormation(), self.off_form_cols),
-                                              ], remainder='passthrough')
+        off_pre_one_pipe = ColumnTransformer([
+            ('info_scale', StandardScaler(), self.off_info_cols),
+            ('form', OffensiveFormation(), self.off_form_cols),
+            ('filter_cols', FunctionTransformer(lambda x: x), self.off_cat_info_cols)
+        ])
         off_pre_one_add_col = Pipeline([('off_pre_one', off_pre_one_pipe),
                                         ('func_trans', FunctionTransformer(lambda x:
                                                                            pd.DataFrame(x,
-                columns=list(self.off_info_cols) +list(self.off_form_cols) + list(self.off_cat_info_cols)))),
+                columns=list(self.off_info_cols) + list(self.off_form_cols) + list(self.off_cat_info_cols)))),
                                         ('select_cols', FeatureSelector(
                     list(self.off_info_cols) + list(self.off_form_cols) + list(self.off_cat_info_cols)))])
 
@@ -258,7 +260,9 @@ class FullPipeWrapper(PrepPipe):
         off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
 
         def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
-        def_full_pipe = Pipeline([('def_clust', DefensiveClustering()), ('def_clust_one', def_one_pipe)])
+        def_full_pipe = Pipeline([
+            ('def_clust', DefensiveClustering()),
+            ('def_clust_one', def_one_pipe)])
 
         full_pipe = ColumnTransformer([('off', off_full_pipe, self.off_col),
                                        ('def', def_full_pipe, self.def_col)])
