@@ -255,11 +255,12 @@ class FullPipeWrapper(PrepPipe):
                                         ('select_cols', FeatureSelector(
                     list(self.off_info_cols) + list(self.off_form_cols) + list(self.off_cat_info_cols)))])
 
-        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(),
+        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(handle_unknown='ignore'),
                                 self.off_cat_info_cols + ['offenseFormation'])], remainder='passthrough')
         off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
 
-        def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
+        def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(handle_unknown='ignore'),
+                                           [-1])], remainder='passthrough')
         def_full_pipe = Pipeline([
             ('def_clust', DefensiveClustering()),
             ('def_clust_one', def_one_pipe)])
