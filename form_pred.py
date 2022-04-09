@@ -187,7 +187,7 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
             return int(m) * 60 + int(s)
         except:
             return 0
-    addit_feat['timeRemaining'] = addit_feat['quarter'] * 900 + addit_feat['gameClock'].apply(lambda x: get_sec(str(x)))
+    addit_feat['timeRemaining'] = (4 - addit_feat['quarter']) * 900 + addit_feat['gameClock'].apply(lambda x: get_sec(str(x)))
     data_full = data_full.merge(addit_feat[['score_differential','possessionTeam', 'down','timeRemaining','gameId','playId']], how = 'left', left_on = ['gameId','playId'], right_on = ['gameId','playId'])
     return data_full
 
