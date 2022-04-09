@@ -234,7 +234,7 @@ class FullPipeWrapper(PrepPipe):
         self.y_test_y = y_test.iloc[:, 1]
         self.off_col = self.train_test.ofc.drop(['gameId', 'playId', 'gamePlayId', 'week'], axis=1).columns
         self.def_col = self.train_test.dfc.drop(['week'], axis=1).columns
-        form_idx = self.off_col.get_loc('offensiveFormation')
+        form_idx = self.off_col.get_loc('offenseFormation')
         self.off_info_cols = self.off_col[form_idx+1:]
         self.off_form_cols = self.off_col[:form_idx+1]
 
@@ -251,8 +251,8 @@ class FullPipeWrapper(PrepPipe):
                                         ('select_cols', FeatureSelector(list(self.off_info_cols) +
                                                                         list(self.off_form_cols)))])
 
-        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(), ['offensiveFormation',
-                                                                              'team_name'])], remainder='passthrough')
+        form_one_pipe = ColumnTransformer([('off_form_one', OneHotEncoder(),
+                                ['offensiveFormation', 'down' 'team_name'])], remainder='passthrough')
         off_full_pipe = Pipeline([('full_cols', off_pre_one_add_col), ('one_hot', form_one_pipe)])
 
         def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(), [-1])], remainder='passthrough')
