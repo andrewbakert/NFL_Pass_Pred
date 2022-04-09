@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime
+
 def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     # reading plays (see play data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
     plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
@@ -174,5 +176,18 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     data_in_pos = data_in_stacked.groupby(['idx', 'position'])['in'].sum().reset_index()
     data_pos_pivot = data_in_pos.pivot_table(values='in', columns='position', index='idx')
     data_full = data.merge(data_pos_pivot, left_index=True, right_index=True)
+
+    addit_feat = starting_pos_play_game[starting_pos_play_game['offdef'] == 'offense'][['team','gameId','playId']].drop_duplicates().merge(plays[['gameId','playId','preSnapVisitorScore','preSnapHomeScore','gameClock', 'possessionTeam', 'down','quarter']], left_on = ['gameId','playId'], right_on = ['gameId','playId'])
+    addit_feat['score_differential'] = np.where(addit_feat['team'] == 'away', addit_feat['preSnapVisitorScore'] - addit_feat['preSnapHomeScore'],   addit_feat['preSnapHomeScore'] - addit_feat['preSnapVisitorScore'])
+    addit_feat['score_differential'] = np.where(addit_feat['team'] == 'away', addit_feat['preSnapVisitorScore'] - addit_feat['preSnapHomeScore'],   addit_feat['preSnapHomeScore'] - addit_feat['preSnapVisitorScore'])
+    def get_sec(time_str):
+        """Get seconds from time."""
+        try:
+            m, s, _ = time_str.split(':')
+            return int(m) * 60 + int(s)
+        except:
+            return 0
+    addit_feat['timeRemaining'] = addit_feat['quarter'] * 900 + addit_feat['gameClock'].apply(lambda x: get_sec(str(x)))
+    data_full = data_full.merge(addit_feat[['score_differential','possessionTeam', 'down','timeRemaining','gameId','playId']], how = 'left', left_on = ['gameId','playId'], right_on = ['gameId','playId'])
     return data_full
 
