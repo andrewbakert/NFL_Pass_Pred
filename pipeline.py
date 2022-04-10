@@ -233,6 +233,7 @@ class FullPipeWrapper(PrepPipe):
         self.y_test_x = y_test.iloc[:, 0]
         self.y_test_y = y_test.iloc[:, 1]
         self.off_col = self.train_test.ofc.drop(['gameId', 'playId', 'gamePlayId', 'week'], axis=1).columns
+        self.off_col = self.off_col.append(pd.Index(['yardline_first_dir', 'yardline_100_dir']))
         self.def_col = self.train_test.dfc.drop(['week'], axis=1).columns
         form_idx = self.off_col.get_loc('offenseFormation')
         self.off_info_cols = self.off_col[form_idx+1:]
