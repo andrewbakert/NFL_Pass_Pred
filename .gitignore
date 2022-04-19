@@ -138,3 +138,5 @@ model_test.ipynb
 route_pred.ipynb
 test.py
 spark-warehouse
+models/model_full_y.pkl
+models/model_full_x.pkl
