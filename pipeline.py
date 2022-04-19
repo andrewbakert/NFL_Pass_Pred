@@ -34,6 +34,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import FunctionTransformer
 import pandas as pd
+import re
 
 class PrepPipe:
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
@@ -240,6 +241,9 @@ class FullPipeWrapper(PrepPipe):
         self.off_form_cols = self.off_col[:form_idx+1]
         self.off_cat_info_cols = ['down', 'possessionTeam']
         self.off_info_cols = self.off_info_cols[~np.isin(self.off_info_cols, self.off_cat_info_cols)]
+        self.def_start_col = [col for col in self.def_col if re.search('start', col)]
+        self.def_start_col_y = [col for col in self.def_start_col if re.search('y', col)]
+        self.def_start_col_x = [col for col in self.def_start_col if re.search('x', col)]
 
     def build_pipe(self, side='both', model=LogisticRegression()):
         if not hasattr(self, "X_train"):
@@ -262,8 +266,14 @@ class FullPipeWrapper(PrepPipe):
 
         def_one_pipe = ColumnTransformer([('def_clust_one', OneHotEncoder(handle_unknown='ignore'),
                                            [-1])], remainder='passthrough')
+        def_pass = Pipeline([('select_cols', FeatureSelector(self.def_start_col)),
+                             ('pass', FunctionTransformer(lambda x: x))])
+        def_clust = ColumnTransformer([
+            ('pass', def_pass, self.def_start_col),
+            ('def_clust', DefensiveClustering(), self.def_col)
+                                    ])
         def_full_pipe = Pipeline([
-            ('def_clust', DefensiveClustering()),
+            ('def_clust_pass', def_clust),
             ('def_clust_one', def_one_pipe)])
 
         full_pipe = ColumnTransformer([('off', off_full_pipe, self.off_col),
