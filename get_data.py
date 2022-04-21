@@ -1,4 +1,5 @@
 def get_assets():
+    '''Get NFL data from Kaggle API and store in working directory'''
     ## instructions on getting data through Kaggle API. API key is read from user/'your name'/.kaggle directory on a mac.
     ## https://www.kaggle.com/general/74235
     import os
@@ -26,6 +27,7 @@ def get_assets():
         print("Data Successfully Downloaded")
 
 def get_positional_data():
+    '''Consolidate KAggle API data into one working file called positions'''
     import pandas as pd
     import numpy as np
     import os

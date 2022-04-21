@@ -2,6 +2,7 @@ import os
 import pickle
 
 class TrainTestNFL:
+    """Class to create a train test split with NFL data"""
     def __init__(self,off = None, dfc = None, y = None):
         self.ofc = off
         self.dfc = dfc
@@ -9,13 +10,21 @@ class TrainTestNFL:
         self.checks = []
             
     def split(self, first = 1, last = 17):
-        '''
-        Splits offense, defense and ball quadrant dataframes by first (int) and last (int) week.
-        Used for train test splits.
-        '''
+        """Split given Week {first} and Week {Last} for Train / Test Split
+
+        Parameters
+        ----------
+        first : int
+            First week (inclusive) to split
+
+        last : int
+            Last week (inclusive) of split """
+        #imports
         import pandas as pd
         import numpy as np
         games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
+        
+        # Checks for usable data
         if "week" in self.ofc.columns:
             pass
         elif "gameId" in self.ofc.columns:
@@ -36,7 +45,6 @@ class TrainTestNFL:
             self.y = self.y.merge(games[['gameId','week']], left_on = 'gameId', right_on = 'gameId')
         else:
             self.checks.append('ball placement (y)')
-
         if len(self.checks) > 0:
             raise Exception(f'The following dataframes don\'t have a week or gameId for split: {self.checks}')
 
@@ -50,18 +58,19 @@ class TrainTestNFL:
         #Merge X back with Y so the data matches up
         self.X = pd.merge(self.X, self.y[['gameId','playId','week']], how='inner', left_on = ['gameId','playId','week'], right_on = ['gameId','playId','week']).fillna(0)
 
+    # Checks for start and last
         if first not in self.X['week'].to_list():
             raise Exception(f'Starting week {first} not in df')  
 
         if last not in self.X['week'].to_list(): 
             raise Exception(f'Ending week {last} not in df')  
-
+    #If not train/test splitting
         if first == 1 and last == 17:
             self.X_train = self.X
             self.X_test = None
             self.y_train = self.y
             self.y_test = None
-
+    #if splitting
         else:
             self.X_train = self.X[(self.X['week'] >= first) & (self.X['week'] <= last)]
             self.X_test = self.X[(self.X['week'] > last)]
@@ -72,7 +81,13 @@ class TrainTestNFL:
                 
 
     def formation_pred(self, confusion_matrix = False):
-        '''Replace the True Offensive Formation labels with the predicted offensive formation labels'''
+        """Replace the True Offensive Formation labels with the predicted offensive formation labels
+
+        Parameters
+        ----------
+        confusion_matrix : bool
+            print a confusion matrix. Default == False """
+
         from sklearn.preprocessing import StandardScaler
         from sklearn.linear_model import LogisticRegression
         from sklearn.model_selection import cross_val_score

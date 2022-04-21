@@ -3,6 +3,24 @@ import numpy as np
 from datetime import datetime
 
 def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
+    '''    
+    Clean the weekly positional data provided by Kaggle into a usable format for the analysis
+    
+    Parameters
+    ----------
+    Positions : csv
+        The positions file from get_data 
+    first : int
+        First week to include for purpose of train/test
+    last : int
+        Last week to include for purpose of train/test
+    yards_behind_line : int
+        How far behind the LOS a player needs to be to be considered behind the LOS.
+        
+    Returns
+    -------
+    Clean DataFrame with positional play-by-by'''
+
     # reading plays (see play data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
     plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
     games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
@@ -93,7 +111,7 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
                  .reset_index())
 
     # Next, group and extract ranking of positions based on whether team is home or away
-    # and the starting position.
+    # and the starting position/features including which side of the QB the player is on.
     qb_start = pos_start[pos_start['position'] == 'QB']
     non_qb_start = pos_start[pos_start['position'] != 'QB']
     left = non_qb_start[non_qb_start['qb_side'] == 'L']
@@ -155,11 +173,13 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
                               left_index=True,
                               right_on=['gameId', 'playId'])
 
+    #Removing game IDs that don't matter
     ids_to_remove_list = events_to_remove_df['ids'].to_list() + Dplayers_to_remove_df['ids'].to_list() 
 
     data['gamePlayId'] = data['gameId'].astype(str) + data['playId'].astype(str)
     data = data[~data['gamePlayId'].isin(ids_to_remove_list)]
 
+    #creating additional features after function has already been created
     data.dropna(axis=0, inplace=True)
     data = data.loc[:, ~np.all(data == 0, axis=0)]
     data['on_left'] = data.iloc[:, data.columns.str.contains('L\d_in')].sum(axis=1)

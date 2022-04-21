@@ -1,7 +1,24 @@
 def ball_quadrants(pos, y_sections = 3):
+    '''
+    Return dataframe pos with the quadrant of where the ball is thrown.
+    y_sections: the number of y buckets for quadrant creation
+
+    Parameters
+    ----------
+    pos : Pandas DataFrame
+        Dataframe of all positions and plays created from clean_positional()
+    y_sections : int
+        the number of y buckets for quadrant creation
+   
+    Returns
+    -------
+    The pos dataframe with additional parameters including the x and y vector space of a given pass and its associated quadrant.
+    '''
+    #imports
     import pandas as pd
     import numpy as np
     plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
+
     #Get position of ball when it is caught, incomplete, intercepted, etc.
     pass_end = pos[pos['event'].isin(['pass_arrived','pass_outcome_caught','pass_outcome_incomplete','pass_outcome_interception','pass_outcome_touchdown'])].query("displayName == 'Football'").groupby(['gameId','playId']).first().reset_index()[['gameId','playId','x','y','playDirection','event']]
     #get position of ball when it is snapped
@@ -70,9 +87,22 @@ def ball_quadrants(pos, y_sections = 3):
     return quad_df.drop(['x_sec_array','y_bucket'], axis = 1)
         
 def make_quad_chart(pass_df):
+    '''Create a simple visualization to see a heatmap of quadrants
+    
+    Parameters
+    ----------
+    pass_df : Pandas DataFrame
+        dataframe created from ball_quadrant function
+    
+    Returns
+    ----------
+    Altair heatmap of quadrant frequency from pass_df '''
+
+    
+    #import altair for visualization
     import altair as alt
     alt.data_transformers.disable_max_rows()
-    """pass_df: dataframe created by ball_quadrants() function"""
+    #Chreate and return the simple chart
     return alt.Chart(pass_df[['x_quad','y_quad']]).mark_rect().encode(
         x='x_quad:O',
         y='y_quad:O',
