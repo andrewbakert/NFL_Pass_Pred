@@ -37,6 +37,44 @@ import pandas as pd
 import re
 
 class PrepPipe:
+    """
+    Processes data using defensive and offensive pipelines and splits into train and test sets
+
+    Attributes
+    ----------
+    first : int
+        Starting week for train set
+        default 1
+
+    last : int
+        Ending week for train set
+        default : 14
+
+    n_cuts : int
+        Number of cuts in play used to average defensive positions
+        default : 11
+
+    frameLimit : int
+        Minimum number of 100 ms periods in play. Should be the same as n_cuts.
+        default : 11
+
+    simMethod : str
+        Method of evaluating similarity between players. Used to evaluate defensive position.
+        default : 'distance'
+
+    quad_num : int
+        Number of x and y quadrants to break decision space into.
+        default : 4
+
+    def_fp : str
+        Filepath for processed defensive data
+        default : 'assets/def_clean_output.csv'
+
+    Methods
+    -------
+    clean_data
+        Cleans all data and breaks into train and test set
+    """
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
                  simMethod='distance', quad_num=4, def_fp='assets/def_clean_output.csv'):
         self.first = first
@@ -51,8 +89,19 @@ class PrepPipe:
         self.positions = get_positional_data()
 
     def clean_data(self):
+        """
+        Cleans data and returns train and test set
+        :return: tuple of train and test sets, both X and y.
+        """
+
+        # Create quadrants
         quads = ball_quadrants(self.positions,self.quad_num)
+
+        # Clean defensive data
         offense = clean_positional(self.positions)
+
+        # Check if there is already a defensive file and that it contains all games.
+        # If so, load from file. If not, clean defensive data.
         try:
             defense = pd.read_csv(self.def_fp).reset_index()
             if 2018123015 not in defense['gameId'].to_list():
@@ -64,14 +113,56 @@ class PrepPipe:
                                              frameLimit=self.frameLimit, simMethod=self.simMethod,
                                              )
             defense = def_cleaning.generate_full_df(1, 17, fp=self.def_fp).reset_index()
+
+        # Instantiate class to break up into sets.
         self.train_test = TrainTestNFL(offense,defense,quads)
         X_train, X_test, y_train, y_test = self.train_test.split(self.first, self.last)
+
+        # Choose only quadrants for y.
         y_train = y_train[['x_quad', 'y_quad']]
         y_test = y_test[['x_quad', 'y_quad']]
         return X_train, X_test, y_train, y_test
 
 
 class OffensiveFormation(BaseEstimator, TransformerMixin):
+    """
+    Creates SKLearn transformer that predicts the offensive formation based on starting positions.
+
+    Attributes
+    ----------
+    model : bool or SKLearn model
+        Flag for whether model is specified, or specified model.
+        default : False
+
+    model_params : bool or dict
+        Flag for whether grid search parameters are specified or parameters
+        default : False
+
+    model_fp : str
+        Filepath for existing model if available.
+        default : 'models/off_form.pkl'
+
+    scaler_fp : str
+        Filepath for existing scaler if available
+        default : "models/off_scaler.pkl"
+
+    cv : int
+        Number of cross validation folds used in grid search
+        default : 5
+
+    scoring : str
+        Scoring parameter used to evaluate
+        default : "fi_micro"
+
+    Methods
+    -------
+    fit
+        Fit grid search and scaler
+
+    transform
+        Add in offensive formation prediction
+
+    """
     def __init__(self, model=False, model_params=False, model_fp='models/off_form.pkl',
                  scaler_fp="models/off_scaler.pkl",
                  cv=5, scoring='f1_micro'):
@@ -89,6 +180,24 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         self.scoring = scoring
 
     def fit(self, X, y=None):
+        """
+        Fit grid search and scaler
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Dataframe used to fit models
+
+        y : pd.Series
+            Y data
+            default : None
+
+        Returns
+        -------
+        self
+        """
+
+        # Check if model and scaler already saved. If so, load with pickle.
         if self.model_fp and os.path.exists(self.model_fp):
             with open(self.model_fp, 'rb') as model:
                 self.grid = pickle.load(model)
@@ -97,15 +206,24 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
             X_train = X.drop('offenseFormation', axis=1)
             self.X_cols = X_train.columns
         else:
+            # Instantiate grid with parameters and model
             self.grid = GridSearchCV(self.model, param_grid=self.model_params, cv=self.cv,
                                      scoring=self.scoring)
+
+            # Select all but offensive formation for prediction.
             X_train = X.drop('offenseFormation', axis=1)
             y_train = X['offenseFormation']
+
+            # Instantiate scaler and transform
             self.scaler = StandardScaler()
             self.X_cols = X_train.columns
             X_train_scaled = self.scaler.fit_transform(X_train)
+
+            # Fit grid with scaled data
             self.grid.fit(X_train_scaled, y_train)
             base = self.model_fp.split('/')[0]
+
+            # Save model if newly trained
             if self.model_fp:
                 if not os.path.exists(base):
                     os.mkdir(base)
@@ -281,9 +399,11 @@ class FullPipeWrapper(PrepPipe):
 
         if side == 'off':
             # Offensive pipeline alone
-            pipe = Pipeline([('off_full_pipe', off_full_pipe), ('model', model)])
+            pipe = Pipeline([('select_cols', FunctionTransformer(lambda x: x[self.off_col])),
+                             ('off_full_pipe', off_full_pipe), ('model', model)])
         elif side == 'def':
-            pipe = Pipeline([('def_full_pipe', def_full_pipe),
+            pipe = Pipeline([('select_cols', FunctionTransformer(lambda x: x[self.def_col])),
+                             ('def_full_pipe', def_full_pipe),
                              ('model', model)])
         elif side == 'both':
             pipe = Pipeline([('full_pipe', full_pipe),
