@@ -118,18 +118,49 @@ def create_starting_chart(pos_df, game_id, play_id):
     return full_chart
 
 def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
+    """
+    Create interactive chart with starting positions based on play number and game
+
+    Parameters
+    ----------
+    pos_df : Pandas DataFrame
+        Dataframe with full positional data
+    game_id : int
+        ID number of game
+    play_id : int
+        ID number of play
+    n_cuts : int
+        Number of cuts in play
+
+    Returns
+    -------
+    Altair chart with interactive features
+    """
+
+    # Select only given play and load plays dataframe
     play_df = pos_df[(pos_df['gameId'] == game_id) & (pos_df['playId'] == play_id)]
     plays_df = pd.read_csv('Kaggle-Data-Files/plays.csv')
+
+    # Select only plays after snap, and then merge with the plays dataframe.
     after_snap = play_df[play_df['time'].ge(play_df[play_df['event'] == 'ball_snap']['time'].iloc[0])]
     after_snap_play = after_snap.merge(plays_df, on=['gameId', 'playId'])
+
+    # Convert to datetime, and then extract play description
     after_snap_play['time'] = pd.to_datetime(after_snap_play['time'])
     play_desc = after_snap_play['playDescription'].iloc[0]
     play_desc = re.search('^\([\d:]+\)\s(?P<description>.*)', play_desc).group('description')
     print('Play description:', play_desc)
+
+    # Find time accumulated in play in seconds
     after_snap_play['time_diff'] = after_snap_play.groupby('displayName')['time'].diff()
     after_snap_play['time_diff'][after_snap_play['time_diff'].isnull()] = pd.Timedelta(0)
     after_snap_play['time_acc_s'] = after_snap_play['time_diff'].dt.microseconds.div(1e6)
-    after_snap_play['time_acc_s'] = after_snap_play.groupby('displayName')['time_acc_s'].transform(lambda x: x.cumsum())
+    after_snap_play['time_acc_s'] = after_snap_play.groupby('displayName')['time_acc_s'].transform(
+        lambda x: x.cumsum())
+
+    # Check if the number of unique times referenced is less than the number of cuts. If so,
+    # set number of bins equal to the number of time intervals.
+    # If not, set bins equal to number of cuts.
     n_times = after_snap_play['time_acc_s'].unique().shape[0]
     if n_times < n_cuts:
         after_snap_play['time_cuts'] = pd.cut(after_snap_play['time_acc_s'], bins=n_times,
@@ -137,6 +168,8 @@ def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
     else:
         after_snap_play['time_cuts'] = pd.cut(after_snap_play['time_acc_s'], bins=n_cuts,
                                               labels=range(1, n_cuts+1))
+
+    # Find 100-based x position and whether a player is on offense or defense
     after_snap_play['x_100'] = after_snap_play['x'].sub(10)
     off_def_map = after_snap_play.groupby('team').apply(
         lambda x: 'QB' in x['position'].values).reset_index().rename({0: 'off'}, axis=1)
@@ -151,9 +184,11 @@ def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
                       'x_100'].iloc[0] < after_snap_off['yardline_100'].iloc[0]
     except IndexError:
         try:
+            # If there is no QB, check side of punter
             on_left = (after_snap_off[after_snap_off['position'] == 'P']['x_100'].iloc[0]
                        < after_snap_off['yardline_100'].iloc[0])
-            team_map = after_snap_off.groupby(['gameId', 'playId', 'team']).apply(lambda x: 'P' in x['position'].unique())
+            team_map = after_snap_off.groupby(['gameId', 'playId', 'team']).apply(lambda x:
+                                                                                  'P' in x['position'].unique())
             team_map = team_map.map(lambda x: 'Offense' if x else 'Defense')
             team_map.name = 'off'
             after_snap_off.drop('off', axis=1, inplace=True)
@@ -162,16 +197,19 @@ def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
         except IndexError:
             on_left = after_snap_off['x_100'].iloc[0] > after_snap_off['yardline_100'].iloc[0]
 
-
+    # Find side of play that offense is on.
     if on_left == False:
         side = 'right'
     else:
         side = 'left'
 
+    # Compute the yardline for first down based on the side of play
     if side == 'left':
         after_snap_off['yardline_first'] = after_snap_off['yardline_100'].add(after_snap_off['yardsToGo'])
     else:
         after_snap_off['yardline_first'] = after_snap_off['yardline_100'].sub(after_snap_off['yardsToGo'])
+
+    # Recompute yardlines based on side of play
     if side == 'right':
         after_snap_off['x_dir'] = after_snap_off['x_100'].rsub(100)
         after_snap_off['yardline_dir'] = after_snap_off['yardline_100'].rsub(100)
@@ -182,32 +220,45 @@ def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
         after_snap_off['yardline_dir'] = after_snap_off['yardline_100'].copy()
         after_snap_off['yardline_first_dir'] = after_snap_off['yardline_first'].copy()
         after_snap_off['y_dir'] = after_snap_off['y'].rsub(53.3)
+
+    # Rename football position to reduce space. Then create another side for the football
     after_snap_off['position'] = np.where(after_snap_off['displayName'] == 'Football',
                                           'Ft',
                                           after_snap_off['position'])
     after_snap_off['off'] = np.where(after_snap_off['position'] == 'Ft', 'Football',
                                      after_snap_off['off'])
+
+    # Find average at each cut.
     mean_pos = after_snap_off.groupby(['gameId', 'playId', 'time_cuts', 'displayName'])[
         ['x_dir', 'y_dir']].mean()
-    per_timecut = mean_pos.merge(after_snap_off[['gameId', 'playId', 'time_cuts', 'displayName', 'position', 'off', 'yardline_dir', 'yardline_first_dir']].
+    per_timecut = mean_pos.merge(after_snap_off[['gameId', 'playId', 'time_cuts', 'displayName', 'position', 'off',
+                                                 'yardline_dir', 'yardline_first_dir']].
                                  drop_duplicates(),
                                  left_index=True, right_on=['gameId', 'playId', 'time_cuts', 'displayName'])
     per_timecut['time_cuts'] = per_timecut['time_cuts'].astype(int)
+
+    # Create a dropdown selection for time cuts.
     input_dropdown = alt.binding_select(options=per_timecut['time_cuts'].unique(), name='Time cut\n')
     selection = alt.selection_single(fields=['time_cuts'], bind=input_dropdown, init={'time_cuts': 1})
 
+    # Create chart for player points on field.
     points = alt.Chart(per_timecut).encode(x=alt.X('y_dir:Q', scale=alt.Scale(domain=[0, 53.3]), title=None),
                                            y=alt.Y('x_dir:Q', scale=alt.Scale(zero=False), title='Yardline'),
                                            color=alt.Color('off:N', title=None),
                                            tooltip=['position:N']
                                            ).mark_circle(size=100, dx=5, dy=5)
 
+    # Create chart for text of positions
     text = alt.Chart(per_timecut).encode(x=alt.X('y_dir:Q', scale=alt.Scale(domain=[0, 53.3]), title=None),
                                          y=alt.Y('x_dir:Q', scale=alt.Scale(zero=False), title='Yardline'),
                                          text=alt.Text('position:N')
                                          ).mark_text(dx=-15, fontSize=8)
+
+    # Create yardline rules
     yardline_100 = alt.Chart(per_timecut).encode(y=alt.Y('yardline_dir:Q')).mark_rule(color='blue')
     yardline_first = alt.Chart(per_timecut).encode(y=alt.Y('yardline_first_dir:Q')).mark_rule(color='#ECEC01')
+
+    # Combine and add selection
     chart = (points + text + yardline_first + yardline_100).add_selection(
         selection
     ).transform_filter(
