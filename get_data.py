@@ -20,15 +20,9 @@ def get_assets():
         subprocess.run(["kaggle", "competitions", "download", "-c", 'nfl-big-data-bowl-2021'])
 
         import zipfile
-<<<<<<< HEAD:python_files/get_data.py
-        print(os.getcwd())
-        with zipfile.ZipFile('../nfl-big-data-bowl-2021.zip', 'r') as zip_ref:
-            zip_ref.extractall('../Kaggle-Data-Files')
-=======
         cwd = str(os.getcwd())
         with zipfile.ZipFile(cwd + '/nfl-big-data-bowl-2021.zip', 'r') as zip_ref:
             zip_ref.extractall(cwd + '/Kaggle-Data-Files')
->>>>>>> parent of 0afc01d (Reorganize repo):get_data.py
 
         print("Data Successfully Downloaded")
 

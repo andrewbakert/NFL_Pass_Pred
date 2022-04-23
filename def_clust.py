@@ -165,6 +165,6 @@ def return_pca_and_clusters(df, columns='all', n_clusters=5, pca_comps=0, scale=
     n_comps = optimize_pca_components(X, pca_comps)
     scores_pca, comps_pca = optimize_kmeans_clusters_with_pca(X, n_comps)
     # plot_pca_heatmap(comps_pca, pca_df)
-    df_seg = kmeans_clusters_and_dataframe(scores_pca, pca_df, n_clusters, '../assets/def_clust_output.csv')
+    df_seg = kmeans_clusters_and_dataframe(scores_pca, pca_df, n_clusters, 'assets/def_clust_output.csv')
     
     return df_seg
