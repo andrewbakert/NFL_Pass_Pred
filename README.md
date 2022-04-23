@@ -11,7 +11,7 @@ First, to download the repo use the following command in Terminal: `git clone ht
 Next, to download the requisite packages and versions run the following: `pip install -r requirements.txt`
 
 ### Download required data
-We have provided a python script to download the required data from Kaggle and combine the week-by-week positional data into one dataframe. This file is located at [python_files/get_data.py](python_files/get_data.py).
+We have provided a python script to download the required data from Kaggle and combine the week-by-week positional data into one dataframe. This file is located in [this script](get_data.py).
 
 In order to download the data, run the following commands from that file:
 
