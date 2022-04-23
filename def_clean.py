@@ -3,8 +3,6 @@
 
 import pandas as pd
 import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
 import os
 from get_data import get_assets, get_positional_data
 import time
@@ -27,6 +25,43 @@ class InvalidSimilarityMetricError(Exception):
         super().__init__(self.message)
 
 class DefensiveCleaning:
+    """
+    Prepares the defensive positional data for downstream machine learning tasks
+
+    Attributes
+    ----------
+    weeks_data : pandas DataFrame
+        Flag for whether DataFrame is loaded model is specified, or specified model.
+        default : None
+    n_cuts : int
+        Number of cuts to reduce the chunks of time into
+        default : 11
+    frameLimit : int
+        Number of frames required in a play to use in downstream tasks
+        default : 11
+    simMethod: str
+        Method to calculate the closest offensive player
+        default : "distance"
+
+    Methods
+    -------
+    filter_full_position_df
+        Filter plays in positional data for time data between ball snap and pass forward greater than frameLimit
+    transform_directions
+        Transform the player's movement data to normalize offense direction, extract relevant 
+        football distance metrics and label defensive player based on QB perspective
+    reduce_time
+        Reduce the play data into the number of cuts 'n_cuts' and calculate closest offensive player 
+        for each defender across the cuts
+    starting_pos
+        Generate starting position for each defender and extract play-level information
+    generated_action_type_df
+        Generate the action type (blitz, zone or man) for each defender
+    combine_week
+        Utilize reduce_time, starting_pos and generate_action_type_df to create dataframe for a single week
+    generate_full_df
+        Run combine_week for consecutive number of weeks specified and output to a CSV file
+    """
     def __init__(self, weeks_data=None, n_cuts=11, frameLimit=11, simMethod='distance'):
         print('..............................initializing')
         if not os.path.exists('Kaggle-Data-Files'):
@@ -42,54 +77,37 @@ class DefensiveCleaning:
         self.frameLimit = frameLimit
         self.simMethod = simMethod
 
-    def new_time(self, week):
-        #df = df[df['playId']==2372]
-        df = self.weeks_data[self.weeks_data['week'] == week]
-        print('...Week {} loaded...'.format(str(week)))
-        time = df[['gameId','playId','time']]
-
-        df['key'] = df['gameId'].astype(str) + df['playId'].astype(str) + df['time'].astype(str) + df['nflId'].astype(str)
-
-        man_ms = df.groupby('key').cumcount()
-
-        fb_df = df[df['nflId'].isnull()]
-
-        tot_ms = fb_df[['gameId','playId','time','event']].groupby(by=['gameId','playId','time']).count()
-
-        time_df = pd.concat([time, man_ms], axis=1).rename(columns={0:'new_sec'})
-
-        tot_ms = tot_ms.reset_index()
-
-        time_df = time_df.reset_index().merge(tot_ms, on=['gameId','playId','time']).set_index('index')
-
-        time_df['new_sec'] = 10 - time_df['event'] + time_df['new_sec']
-
-        time_df['check'] = time_df.time.str[20:21]
-
-        time_df['man_time'] = time_df.time.str[:20] + time_df['new_sec'].astype(str) + '00Z'
-
-        time_df['new_time'] = np.where(time_df['check']!=time_df['new_sec'], time_df['man_time'], time_df['time'])
-
-        time = time_df['new_time']
-
-        df = df.reset_index().merge(time, on='index').set_index('index').drop(columns=['key','time']).rename(columns={'new_time':'time'})
-        print('...accumulated time caluclated...')
-        return df
-
     def filter_full_position_df(self, week):
-        #df = self.new_time(week=week)
+        """
+        Filter plays in positional data for time data between ball snap and pass forward greater than frameLimit
+
+        Parameters
+        ----------
+        week : int
+            Specified week to filter data for
+
+        Returns
+        -------
+        Filtered dataFrame for specified week
+        """
+        # Filter raw week data for a specified week.
         df = self.weeks_data[self.weeks_data['week'] == week]
         print('...Week {} loaded...'.format(str(week)))
+        
+        # Split df into a football only and position only DataFrames.
         fb_df = df[df['nflId'].isnull()]
         pos_df = df[df['nflId'].notnull()]
 
+        # Convert time to datetime format.
         fb_df['time'] =  pd.to_datetime(fb_df['time'], format='%Y-%m-%dT%H:%M:%S')
 
         # Find time that pass was thrown and merge with main df.
         pass_start = fb_df[fb_df['event'] == 'pass_forward'][['gameId', 'playId', 'frameId']].rename({'frameId': 'frame_pass'}, axis=1)
 
+        # Find time that ball was snapped and merge with main df
         ball_snap = fb_df[fb_df['event'] == 'ball_snap'][['gameId', 'playId', 'frameId']].rename({'frameId': 'frame_snap'}, axis=1)
 
+        # Merge pass start and ball snap to the position df
         pos_df = pos_df.merge(pass_start, on=['gameId', 'playId'], how='left')
         pos_df = pos_df.merge(ball_snap, on=['gameId', 'playId'], how='left')
 
@@ -104,41 +122,51 @@ class DefensiveCleaning:
         pos_df = pos_df[pos_df['before_pass']]
         pos_df = pos_df[pos_df['after_snap']]
 
+        # Create dataframe that counts number of frames in a play
         uniq_df = pos_df[['frameId','gameId','playId','event']]
-
         uniq_df = uniq_df.groupby(by=['frameId','gameId','playId']).count().reset_index().drop(columns='event')
-
         uniq_df = uniq_df.groupby(by=['gameId','playId']).count().sort_values(by='frameId').rename(columns={'frameId':'frameCount'})
 
+        # Merge frameCount to positional df
         pos_df = pos_df.merge(uniq_df.reset_index(), on=['gameId','playId'])
 
-        short_df = pos_df[pos_df['frameCount'] < self.frameLimit]
-        short_df = short_df[['gameId','playId','frameId']].groupby(by=['gameId','playId']).count().drop(columns='frameId')
-
-        #short_df.to_csv('assets/short_plays.csv')
-
+        # Filter positional df for any plays greater than or equal to frameLimit
         pos_df = pos_df[pos_df['frameCount'] >= self.frameLimit]
 
         print('...filtered...')
         return pos_df.drop(columns=['before_pass','after_snap'])
 
-    def plot_histogram(self, df, column, bins, hue, fig_name):
-        sns.histplot(data=df, x=column, bins=bins, hue=hue)
-        figure = 'assets/' + fig_name + '.png'
-        plt.savefig(figure)
-        plt.close()
-
     def transform_directions(self, week):
+        """
+        Transform the player's movement data to normalize offense direction, extract relevant 
+        football distance metrics and label defensive player based on QB perspective
+
+        Parameters
+        ----------
+        week : int
+            Specified week to filter data for
+
+        Returns
+        -------
+        Transformed dataFrame for specified week
+        """
+        # Filter df for specified week
         df = self.filter_full_position_df(week=week)
+        
+        # Copy play_data 
         play_data = self.play_data.copy()
+        
+        # Calcualte the time accumulated in seconds across players, plays and games
         df['time_diff'] = df.groupby(['playId', 'gameId', 'displayName'])['time'].diff()
         df['time_diff'][df['time_diff'].isnull()] = pd.Timedelta(0)
         df['time_acc_s'] = df['time_diff'].dt.microseconds.div(1e6)
         df['time_acc_s'] = df.groupby(['playId', 'gameId', 'nflId'])['time_acc_s'].transform("cumsum")
         df.drop('time_diff', axis=1, inplace=True)
 
+        # Remove records from with nulls in absoluteYardlineNumber
         play_df = play_data[play_data['absoluteYardlineNumber'].notnull()]
-        #print(play_df.shape)
+    
+        # Remove unecessary columns from play_df
         play_df = play_df[['gameId','playId', 'absoluteYardlineNumber','yardsToGo','personnelD',
                            'defendersInTheBox','numberOfPassRushers', 'possessionTeam']]
 
@@ -152,10 +180,9 @@ class DefensiveCleaning:
                                  (df['possessionTeam'] == df['homeTeamAbbr'])),
                                  True, False)
 
+        
+        # Drop staging columns to determine offense or defense
         df.drop(['possessionTeam', 'visitorTeamAbbr', 'homeTeamAbbr'], axis=1, inplace=True)
-
-        #print(df.columns)
-        #print("check for any offensive positions not mapped", df[~df['off']]['position'].unique())
 
         # Extract starting x and y position.
         df['x_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x'].transform("first")
@@ -179,9 +206,6 @@ class DefensiveCleaning:
         # Adjust starting y coordinate because the perspective would change depending on the side.
         df['y_starting_dir'] = np.where(df['off_dir'] == 'right', df['y_starting'], df['y_starting'].rsub(53.3))
 
-        #plot_histogram(df, 'y_starting', 50, 'off', 'y_pos_orig')
-        #plot_histogram(df, 'y_starting_dir', 50, 'off', 'y_pos_notnorm')
-
         # Find starting position of qb and convert to float.
         df['y_starting_qb'] = df.groupby(['gameId', 'playId']).apply(lambda x: np.repeat(53.3/2, x.shape[0])
         if x[x['position'] == 'QB'].shape[0] == 0 else np.repeat(x[x['position'] == 'QB']['y_starting_dir'].iloc[0], x.shape[0])).explode().values
@@ -198,8 +222,7 @@ class DefensiveCleaning:
         start_df = (df.groupby(['gameId', 'playId', 'position', 'nflId'])[['y_starting_dir', 'off_dir', 'qb_side']].first().reset_index())
 
         # Next, group and extract ranking of positions based on whether team is home or away
-        # and the starting position.
-
+        # and the starting position/features including which side of the QB the player is on.
         qb_start = start_df[start_df['position'] == 'QB']
         non_qb_start = start_df[start_df['position'] != 'QB']
         left = non_qb_start[non_qb_start['qb_side'] == 'L']
@@ -242,7 +265,6 @@ class DefensiveCleaning:
                                        df['x'].sub(df['absoluteYardlineNumber']))
 
         df['x_behind_line_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['x_behind_line'].transform('first')
-        #plot_histogram(df, 'x_behind_line', 50, 'off', 'x_behind_line')
 
         # Extract the yardline for first down and line of scrimmage based on the
         # direction that the teams are facing.
@@ -261,47 +283,56 @@ class DefensiveCleaning:
         # moved 1 yard beyond the line of scrimmage to determine if the player is a receiver.
         df['receiver'] = (df['off'] & (df['position'] != 'QB') & (df['exceeded_1yd'] | (df['position'] == 'WR')))
 
-        # Save offensive and defensive numbered position lists.
-        #off_pos = df[df['off']]['posId'].unique()
-        #def_pos = df[~df['off']]['posId'].unique()
-
         # Adjust y to match direction of offense.
         df['y_dir'] = np.where(df['off_dir'] == 'right', df['y'].rsub(53.3), df['y'])
-
-        #plot_histogram(df, 'y_dir', 50, 'off', 'y_dir_hist')
 
         # Define y coordinates as relative to QB.
         df['y_dir_qb'] = df['y_dir'].sub(df['y_starting_qb'])
         df['y_dir_qb_starting'] = df.groupby(['gameId', 'playId', 'nflId'])['y_dir_qb'].transform('first')
 
+        # Remove defensive player that are classified on offense
         Dplayers_to_remove_df = df[(df['position'].isin(['QB','RB','HB','FB','TE','WR'])) &
                                    (df['off'] == False)][['gameId','playId']].drop_duplicates()
         Dplayers_to_remove_df['ids'] = Dplayers_to_remove_df['gameId'].astype(str) + Dplayers_to_remove_df['playId'].astype(str)
         df['gamePlayId'] = df['gameId'].astype(str) + df['playId'].astype(str)
         df = df[~df['gamePlayId'].isin(Dplayers_to_remove_df['ids'].to_list())]
 
-        # The distribution looks centered around 0, as would be expected given that the QB lines up in the center.
-        #plot_histogram(df, 'y_dir_qb', 50, 'off', 'y_qb_dist')
         print('...transformed...')
         return df
 
     def reduce_time(self, week):
-        # Cut time accumulated into 10 deciles for each play in order to reduce the space. Can adjust number of cuts.
+        """
+        Reduce the play data into the number of cuts 'n_cuts' and calculate closest offensive player 
+        for each defender across the cuts    
+
+        Parameters
+        ----------
+        week : int
+            Specified week to filter data for
+
+        Returns
+        -------
+        Full dataFrame & cut dataFrame containing closest offesnive player for specified week
+        """
+        # Return transformed dataframe for specified week.
         df = self.transform_directions(week=week)
+        
+        # Cut time accumulated into 11 deciles for each play in order to reduce the space.
         time_cuts = df[['gameId', 'playId', 'time_acc_s']].drop_duplicates().groupby(['gameId', 'playId']).agg(
             lambda x: np.nan if x.shape[0] < self.n_cuts else pd.cut(x, self.n_cuts, labels=range(1,
                                                             self.n_cuts + 1))).explode('time_acc_s')
+        
+        
+        # Create index across time stamps.
         time_cuts_idx = df[['gameId', 'playId', 'time_acc_s']].drop_duplicates().dropna()
-        # print(len(time_cuts_idx))
+
+        # Identify time cuts for n_cuts across the duration of the play and merge with original DataFrame.
         time_cuts_idx = time_cuts_idx[
             time_cuts_idx.groupby(['gameId', 'playId'])['time_acc_s'].transform(lambda x: x.shape[0] >= self.n_cuts)]
-        # print(len(time_cuts))
-        # print(len(time_cuts_idx))
         time_cuts_idx['time_cut'] = time_cuts.values
-
         df = df.merge(time_cuts_idx, on=['gameId', 'playId', 'time_acc_s'])
 
-        # Aggregate by cur.
+        # Aggregate by cut.
         full_cut_df = df.groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
             {'y_dir_qb': 'mean', 'x_behind_line': 'mean', 'off': 'first'}).reset_index()
 
@@ -317,145 +348,27 @@ class DefensiveCleaning:
         print('...time reduced...')
         return df, cut_df
 
-    def simple_closest_player(self, df, cut_df):
-        cut_df = cut_df[cut_df['distance'] == cut_df['dist_min']]
-        cut_df = (cut_df[['gameId', 'playId', 'time_cut', 'posId_def', 'posId_off']]
-                  .rename({'posId_def': 'posId', 'posId_off': 'pos_off_closest'}, axis=1))
-        df = df.merge(cut_df, on=['gameId', 'playId', 'time_cut', 'posId'], how='left')
-
-        # Next, determine minimum distances between each defensive player and receiver and qb.
-        # Separate defensive and receiver dataframes.
-        rec_dis_df = df[df['receiver']]
-        def_dis_df = df[~df['off']]
-
-        # Merge defensive with receiver dataframes on game, play, and time.
-        dis_df = def_dis_df.merge(rec_dis_df[['gameId', 'playId', 'time_acc_s', 'x_behind_line', 'y_dir_qb']],
-                                  on=['gameId', 'playId', 'time_acc_s'],
-                                  suffixes=['_def', '_rec'])
-
-
-        # Find distance between each defensive player and each receiver.
-        dis_df['dist'] = np.linalg.norm(dis_df[['x_behind_line_def', 'y_dir_qb_def']].values -
-                                        dis_df[['x_behind_line_rec', 'y_dir_qb_rec']].values, axis=1)
-
-        # Group dataframe to obtain minimum distance.
-        min_dis_df = dis_df.groupby(['gameId', 'playId', 'time_acc_s', 'posId'])['dist'].min()
-        min_dis_df.name = 'min_dist_rec'
-
-        # Separate QB dataframe
-        qb_df = df[df['position'] == 'QB']
-
-        # Merge defensive with QB dataframe.
-        qb_df = def_dis_df.merge(qb_df[['gameId', 'playId', 'time_acc_s', 'x_behind_line', 'y_dir_qb']],
-                                 on=['gameId', 'playId', 'time_acc_s'],
-                                 suffixes=['_def', '_qb'])
-
-        # Find distance to the QB.
-        qb_df['dist'] = np.linalg.norm(qb_df[['x_behind_line_def', 'y_dir_qb_def']].values -
-                                       qb_df[['x_behind_line_qb', 'y_dir_qb_qb']].values, axis=1)
-
-        # Group to form index and distance.
-        qb_df = qb_df.groupby(['gameId', 'playId', 'time_acc_s', 'posId'])['dist'].min()
-        qb_df.name = 'dist_qb'
-
-        # Concatenate about the same index and reset the index.
-        min_dist = pd.concat([min_dis_df, qb_df], axis=1).reset_index()
-
-        # Merge main dataframe with minimum distance dataframe.
-        df = df.merge(min_dist, on=['gameId', 'playId', 'time_acc_s', 'posId'], how='left')
-
-        # Evaluate whether a receiver is closer than the qb.
-        df['rec_closer'] = df['min_dist_rec'].lt(df['dist_qb'])
-        print('...distance calculated...')
-
-        return df
-
-    def cosine_closest_player(self, cut_df, n_closest=3):
-        top_closest_players = (cut_df[cut_df['distance'] == cut_df['dist_min']]
-            .groupby(['gameId', 'playId', 'posId_def', 'time_cut'])['posId_off'].first()
-            .reset_index()
-            .rename({'posId_off': 'posId_off_closest'}, axis=1)
-                               )
-        closest_players = cut_df.sort_values('distance').groupby(
-            ['gameId', 'playId', 'posId_def', 'time_cut']).head(n_closest)
-        cut_even = closest_players[closest_players['time_cut'].map(lambda x: x % 2 == 0)]
-        cut_odd = closest_players[closest_players['time_cut'].map(lambda x: x % 2 == 1)]
-        cut_even['prev_cut'] = cut_even['time_cut'].sub(1)
-        cuts_even_merged = cut_even.merge(cut_odd,
-                                          left_on=['gameId', 'playId', 'posId_def', 'posId_off', 'prev_cut'],
-                                          right_on=['gameId', 'playId', 'posId_def', 'posId_off', 'time_cut'],
-                                          suffixes=('_time2', '_time1'))
-        cut_odd['prev_cut'] = cut_odd['time_cut'].sub(1)
-        cut_even.drop('prev_cut', axis=1, inplace=True)
-        cut_odd = cut_odd[cut_odd['prev_cut'].gt(0)]
-        cuts_odd_merged = cut_odd.merge(cut_even,
-                                        left_on=['gameId', 'playId', 'posId_def', 'posId_off', 'prev_cut'],
-                                        right_on=['gameId', 'playId', 'posId_def', 'posId_off', 'time_cut'],
-                                        suffixes=('_time2', '_time1'))
-        full_cut_merged = pd.concat([cuts_even_merged, cuts_odd_merged], axis=0)
-        full_cut_merged = full_cut_merged.sort_values(
-            ['gameId', 'playId', 'posId_def', 'time_cut_time1', 'posId_off'])
-        full_cut_merged['y_dir_qb_def_delta'] = full_cut_merged['y_dir_qb_def_time2'].sub(
-            full_cut_merged['y_dir_qb_def_time1'])
-        full_cut_merged['x_behind_line_def_delta'] = full_cut_merged['x_behind_line_def_time2'].sub(
-            full_cut_merged['x_behind_line_def_time1'])
-        def_vector = np.concatenate([
-            full_cut_merged['x_behind_line_def_delta'].values.reshape(-1, 1),
-            full_cut_merged['y_dir_qb_def_delta'].values.reshape(-1, 1)], axis=1)
-        full_cut_merged['y_dir_qb_off_delta'] = full_cut_merged['y_dir_qb_off_time2'].sub(
-            full_cut_merged['y_dir_qb_off_time1'])
-        full_cut_merged['x_behind_line_off_delta'] = full_cut_merged['x_behind_line_off_time2'].sub(
-            full_cut_merged['x_behind_line_off_time1'])
-        off_vector = np.concatenate([
-            full_cut_merged['x_behind_line_off_delta'].values.reshape(-1, 1),
-            full_cut_merged['y_dir_qb_off_delta'].values.reshape(-1, 1)], axis=1)
-        cosine_sim = np.sum(def_vector * off_vector, axis=1)/(
-                np.linalg.norm(def_vector, axis=1) * np.linalg.norm(off_vector, axis=1))
-        full_cut_merged['cosine_sim'] = cosine_sim
-        max_cosine = full_cut_merged.groupby(['gameId', 'playId', 'posId_def', 'time_cut_time2'])['cosine_sim'].agg(
-            lambda x: np.argmax(x)
-        )
-        max_cosine.name = 'max_cosine_idx'
-
-        full_cut_cosine = full_cut_merged.merge(max_cosine,
-                                                left_on=['gameId', 'playId', 'posId_def',
-                                                         'time_cut_time2'],
-                                                right_index=True)
-        min_cosine = full_cut_merged.groupby(['gameId', 'playId', 'posId_def', 'time_cut_time2'])['cosine_sim'].agg(
-            lambda x: np.argmin(x)
-        )
-        min_cosine.name = 'min_cosine_idx'
-        full_cut_cosine_max_min = full_cut_cosine.merge(min_cosine,
-                                                        left_on=['gameId', 'playId', 'posId_def',
-                                                                             'time_cut_time2'],
-                                                        right_index=True)
-        full_cut_cosine_max_min['player_idx'] = full_cut_cosine_max_min.groupby(
-            ['gameId', 'playId', 'posId_def', 'time_cut_time2']).apply(
-            lambda x: range(x.shape[0])).explode().values
-        full_top_cosine = full_cut_cosine_max_min[full_cut_cosine_max_min['max_cosine_idx'] ==
-                                                  full_cut_cosine_max_min['player_idx']]
-        full_top_cosine.rename({'posId_off': 'posId_off_max'}, axis=1, inplace=True)
-        full_bot_cosine = full_cut_cosine_max_min[full_cut_cosine_max_min['min_cosine_idx'] ==
-                                                  full_cut_cosine_max_min['player_idx']]
-        full_bot_cosine.rename({'posId_off': 'posId_off_min'}, axis=1, inplace=True)
-        player_closest_cosine = full_top_cosine.merge(full_bot_cosine,
-                                                      on=['gameId', 'playId',
-                                                          'posId_def', 'time_cut_time2'])
-        full_cosine = player_closest_cosine[
-            ['gameId', 'playId', 'posId_def', 'time_cut_time2', 'posId_off_max', 'posId_off_min']]
-        full_cosine_closest = full_cosine.merge(top_closest_players.rename({
-            'time_cut': 'time_cut_time2'
-            }, axis=1), on=['gameId', 'playId', 'posId_def', 'time_cut_time2'])
-        print('...closest player based on cosine similarity calculated...')
-        return full_cosine_closest
-
     def starting_pos(self, full_df):
+        """
+        Generate starting position for each defender and extract play-level information
 
+        Parameters
+        ----------
+        full_df : pd.DataFrame
+            Data that has not been reduced to specified number of cuts
+
+        Returns
+        -------
+        DataFrame containing defender's starting positions and DataFrame containing defensive info
+        """
+        # remove any offensive players from the full_df
         trans_df = full_df[['gameId', 'playId', 'posId', 'y_dir_qb_starting', 'x_behind_line_starting',
                             'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL', 'off',
                             'yardline_100_dir', 'yardline_first_dir']].drop_duplicates()
         trans_df_def = trans_df[~trans_df['off']]
         trans_df_def.drop('off', axis=1, inplace=True)
+        
+        # identify starting position for each defensive player in a long table
         trans_stacked = (trans_df_def.set_index(['gameId', 'playId', 'posId',
                                                  'defendersInTheBox','numberOfPassRushers','DB', 'LB', 'DL',
                                                  'yardline_first_dir', 'yardline_100_dir'])
@@ -466,26 +379,50 @@ class DefensiveCleaning:
                          )
         trans_stacked['posId'] = trans_stacked['posId'].add('_').add(trans_stacked['starting'])
         trans_stacked.drop('starting', axis=1, inplace=True)
+        
+        # create starting position dataframe
         start_df = trans_stacked[['gameId', 'playId', 'posId', 'value']]
+        
+        # create dataframe containing play metadata
         info_df = trans_stacked[['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
                                  'yardline_first_dir', 'yardline_100_dir']].drop_duplicates()
         print('...starting dataframe generated...')
         return start_df, info_df
 
     def generate_action_type_df(self, full_df, cut_df):
+        """
+        Generate the action type (blitz, zone or man) for each defender
+
+        Parameters
+        ----------
+        full_df : pd.DataFrame
+            Data from reduce_time function containing play metadata 
+        cut_df : pd.DataFrame
+            Data from reduce_time function that has been reduce into n_cuts for each play
+
+        Returns
+        -------
+        DataFrame containing action type codes for each defender across all plays
+        """
+
+        # Extract the defender and offensive player closet to defender, merge to original DataFrame
         cut_df = cut_df[cut_df['distance'] == cut_df['dist_min']]
         cut_df = (cut_df[['gameId', 'playId', 'time_cut', 'posId_def', 'posId_off']]
                   .rename({'posId_def': 'posId', 'posId_off': 'pos_off_closest'}, axis=1))
         df = full_df.merge(cut_df, on=['gameId', 'playId', 'time_cut', 'posId'], how='left')
+        
         # Aggregate columns based on game, play, numbered position, and time quartile.
         df = df[~df['off'] & (df['position'] != 'TE')].groupby(['gameId', 'playId', 'posId', 'time_cut']).agg(
             {'pos_off_closest': 'first'}
         ).reset_index()
 
+        # Remove uncessary columns for action generation in new df
         action_df = df[['gameId','playId','posId','time_cut','pos_off_closest']]
 
+        # Aggregate the mean time_cut across defenders and closest offensive players
         action_group_df = action_df.groupby(by=['gameId','playId','posId','pos_off_closest']).mean().reset_index().set_index(['gameId','playId','posId'])
 
+        # Simple algorithm to generate defenders action type
         pos_df = action_group_df.reset_index()
         actions = np.where((pos_df.groupby(['gameId', 'playId'])['posId'].transform(lambda x: x.shape[0] == 1)
                             & pos_df['pos_off_closest'].str.contains('QB')) | pos_df.sort_values(
@@ -496,30 +433,70 @@ class DefensiveCleaning:
                            np.where(pos_df.groupby(['gameId', 'playId', 'posId'])['pos_off_closest']
                                     .transform(lambda x: (x.map(lambda x: x[:2]) != 'QB').sum() == 1),
                                     'M', 'Z'))
+        
+        # Take actions generated and create resulting DataFrame with defender's action
         action_group_df['def_action'] = actions
         action_group_df.drop(['pos_off_closest', 'time_cut'], axis=1, inplace=True)
         result_df = action_group_df.reset_index().drop_duplicates()
         result_df['posId'] = result_df['posId'].add('_act')
         result_df.rename({'def_action': 'value'}, axis=1, inplace=True)
+        
         print('...action type generated...')
         return result_df
 
     def combine_week(self, week):
+        """
+        Utilize reduce_time, starting_pos and generate_action_type_df to create dataframe for a single week
+
+        Parameters
+        ----------
+        week : int
+            Week number
+
+        Returns
+        -------
+        DataFrame of one processed week
+        """
+        # Reduce plays to specified time cuts, extract starting positions and generate action types
         full_df, cut_df = self.reduce_time(week)
         start_df, info_df = self.starting_pos(full_df)
         if self.simMethod == 'distance':
             action_df = self.generate_action_type_df(full_df, cut_df)
         else:
             raise InvalidSimilarityMetricError
+        
+        # Combine actions and starting positions into single DataFrame
         total_df =  pd.concat([action_df,start_df],axis=0)
+
+        # Add in play metadata and add a column with week number
         total_df_info = total_df.merge(info_df, on=['gameId', 'playId'])
         total_df_info['week'] = week
         print('.....Week {} COMPLETE.....'.format(str(week)))
         return total_df_info
 
     def generate_full_df(self, first, last, fp='def_clean_output.csv'):
+        """
+        Run combine_week for consecutive number of weeks specified and output to a CSV file
+
+        Parameters
+        ----------
+        first : int
+            Starting week number to process
+        last : int
+            Ending week number to process
+        fp : str
+            File path of processed dataframe, include .csv at end
+            default : def_clean_output.csv'
+
+        Returns
+        -------
+        DataFrame of all processed weeks specified
+        """
+        # Create empty DataFrame and begin timing the processing
         output_df = pd.DataFrame()
         start_time = time.time()
+        
+        # Iterate through consecutive weeks, printing % complete and time elapsed as each week complete
         for week in range(first, last+1):
             total_df = self.combine_week(week=week)
             output_df = pd.concat([output_df, total_df], axis=0)
@@ -531,8 +508,12 @@ class DefensiveCleaning:
             print("--- {} minutes elapsed ---".format(round((end_time - start_time)/60,1)))
             print('')
             print("the weeks complete: ", output_df.week.unique())
+        
+        # Pivot data to include defender's actions and starting positions
         output_df = output_df.pivot(index=['gameId', 'playId', 'defendersInTheBox','numberOfPassRushers', 'DB', 'LB', 'DL',
                                            'yardline_first_dir', 'yardline_100_dir'], columns='posId',values='value')
+        
+        # Export the output to a CSV file based on the specified file path
         output_df.to_csv(fp)
         print(f"Defensive cleaning complete --- check assets/{fp}")
         return output_df
