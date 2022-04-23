@@ -1,10 +1,18 @@
 # IMPORTING LOCAL MODULES
 import importlib
+<<<<<<< HEAD:pipeline.py
 import get_data
 import def_clean
 import form_pred
 import TrainTestNFL
 import ball_movement
+=======
+import form_pred
+import ball_movement
+import get_data
+import def_clean
+import TrainTestNFL
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py
 
 # REFRESHING LOCAL CHANGES
 importlib.reload(get_data)
@@ -20,6 +28,7 @@ from ball_movement import ball_quadrants
 from def_clean import DefensiveCleaning
 from TrainTestNFL import TrainTestNFL
 import os
+import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import GridSearchCV
@@ -70,7 +79,11 @@ class PrepPipe:
         Cleans all data and breaks into train and test set
     """
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
+<<<<<<< HEAD:pipeline.py
                  simMethod='distance', quad_num=4, def_fp='../assets/def_clean_output.csv'):
+=======
+                 simMethod='distance', quad_num=4, def_fp='assets/def_clean_output.csv'):
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py
         self.first = first
         self.last = last
         self.n_cuts = n_cuts
@@ -78,7 +91,11 @@ class PrepPipe:
         self.simMethod = simMethod
         self.quad_num = quad_num
         self.def_fp = def_fp
+<<<<<<< HEAD:pipeline.py
         if not os.path.exists('../Kaggle-Data-Files'):
+=======
+        if not os.path.exists('Kaggle-Data-Files'):
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py
             get_assets()
         self.positions = get_positional_data()
 
@@ -109,7 +126,7 @@ class PrepPipe:
             defense = def_cleaning.generate_full_df(1, 17, fp=self.def_fp).reset_index()
 
         # Instantiate class to break up into sets.
-        self.train_test = TrainTestNFL(offense, defense, quads)
+        self.train_test = TrainTestNFL(offense,defense,quads)
         X_train, X_test, y_train, y_test = self.train_test.split(self.first, self.last)
 
         # Choose only quadrants for y.
@@ -151,8 +168,13 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         Add in offensive formation prediction
 
     """
+<<<<<<< HEAD:pipeline.py
     def __init__(self, model=False, model_params=False, model_fp='../models/off_form.pkl',
                  scaler_fp="../models/off_scaler.pkl",
+=======
+    def __init__(self, model=False, model_params=False, model_fp='models/off_form.pkl',
+                 scaler_fp="models/off_scaler.pkl",
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py
                  cv=5, scoring='f1_micro'):
         if not model:
             self.model = LogisticRegression(max_iter=10000)
@@ -497,7 +519,11 @@ class FullPipeWrapper(PrepPipe):
         Create full processing pipeline
     """
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
+<<<<<<< HEAD:pipeline.py
                  simMethod='distance', quad_num=4, def_fp='../assets/def_clean_output.csv'):
+=======
+                 simMethod='distance', quad_num=4, def_fp='assets/def_clean_output.csv'):
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py
 
         # Initialize prep pipe
         super().__init__(first, last, n_cuts, frameLimit, simMethod,
@@ -627,7 +653,11 @@ class FullPipeWrapper(PrepPipe):
         # Otherwise, return error.
         else:
             raise SideNotValidError
+<<<<<<< HEAD:pipeline.py
         return pipe
 #%%
 
 #%%
+=======
+        return pipe
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/pipeline.py

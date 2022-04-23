@@ -22,8 +22,13 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     Clean DataFrame with positional play-by-by'''
 
     # reading plays (see play data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
+<<<<<<< HEAD:form_pred.py
     plays = pd.read_csv('../nfl-big-data-bowl-2021/plays.csv')
     games = pd.read_csv('../nfl-big-data-bowl-2021/games.csv')
+=======
+    plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
+    games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/cleaning/form_pred.py
 
     #to_datetime
     positions['time'] = pd.to_datetime(positions['time'], format='%Y-%m-%dT%H:%M:%S')
@@ -55,7 +60,7 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     # data cleaning where yardline is not Null
     starting_pos_plays = starting_pos_plays[starting_pos_plays['absoluteYardlineNumber'].notnull()]
     # bring in game info (see game info data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
-    games = pd.read_csv('../../nfl-big-data-bowl-2021/games.csv')
+    games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
 
     #bringing in features from games
     starting_pos_play_game = starting_pos_plays.merge(games, on='gameId', how='left')

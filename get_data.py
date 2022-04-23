@@ -5,7 +5,7 @@ def get_assets():
     import os
     import subprocess
     
-    if os.path.exists('../Kaggle-Data-Files/week17.csv'):
+    if os.path.exists('Kaggle-Data-Files/week17.csv'):
         print('assets previously downloaded')
     else: 
         print("This process will pip install Kaggle and download data through Kaggle API.")
@@ -20,9 +20,15 @@ def get_assets():
         subprocess.run(["kaggle", "competitions", "download", "-c", 'nfl-big-data-bowl-2021'])
 
         import zipfile
+<<<<<<< HEAD:python_files/get_data.py
         print(os.getcwd())
         with zipfile.ZipFile('../nfl-big-data-bowl-2021.zip', 'r') as zip_ref:
             zip_ref.extractall('../Kaggle-Data-Files')
+=======
+        cwd = str(os.getcwd())
+        with zipfile.ZipFile(cwd + '/nfl-big-data-bowl-2021.zip', 'r') as zip_ref:
+            zip_ref.extractall(cwd + '/Kaggle-Data-Files')
+>>>>>>> parent of 0afc01d (Reorganize repo):get_data.py
 
         print("Data Successfully Downloaded")
 
@@ -31,9 +37,8 @@ def get_positional_data():
     import pandas as pd
     import numpy as np
     import os
-    print(os.getcwd())
     
-    dir = '../assets'
+    dir = 'assets'
     fp = dir + '/full_position.csv'
     cwd = str(os.getcwd())
     if not os.path.exists(dir):
@@ -49,7 +54,7 @@ def get_positional_data():
         positions = pd.DataFrame()
         for week in range(1, 18):
             print(f'reading week {week}')
-            week_data = pd.read_csv(f'../Kaggle-Data-Files/week{week}.csv')
+            week_data = pd.read_csv(cwd + f'/Kaggle-Data-Files/week{week}.csv')
             week_data['week'] = week
             positions = pd.concat([positions, week_data], axis=0)
             print(f'added week {week}')

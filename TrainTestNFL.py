@@ -22,7 +22,11 @@ class TrainTestNFL:
         #imports
         import pandas as pd
         import numpy as np
+<<<<<<< HEAD:TrainTestNFL.py
         games = pd.read_csv('../nfl-big-data-bowl-2021/games.csv')
+=======
+        games = pd.read_csv('nfl-big-data-bowl-2021/games.csv')
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/TrainTestNFL.py
         
         # Checks for usable data
         if "week" in self.ofc.columns:

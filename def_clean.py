@@ -1,5 +1,9 @@
 # %%
 
+<<<<<<< HEAD:def_clean.py
+=======
+
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/cleaning/def_clean.py
 import pandas as pd
 import numpy as np
 import os
@@ -62,14 +66,23 @@ class DefensiveCleaning:
     """
     def __init__(self, weeks_data=None, n_cuts=11, frameLimit=11, simMethod='distance'):
         print('..............................initializing')
+<<<<<<< HEAD:def_clean.py
         if not os.path.exists('../Kaggle-Data-Files'):
+=======
+        if not os.path.exists('Kaggle-Data-Files'):
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/cleaning/def_clean.py
             get_assets()
         if type(weeks_data) != pd.DataFrame:
             self.weeks_data = get_positional_data()
         else:
             self.weeks_data = weeks_data
+<<<<<<< HEAD:def_clean.py
         self.play_data = pd.read_csv('../Kaggle-Data-Files/plays.csv')
         self.game_data = pd.read_csv('../Kaggle-Data-Files/games.csv')
+=======
+        self.play_data = pd.read_csv('Kaggle-Data-Files/plays.csv')
+        self.game_data = pd.read_csv('Kaggle-Data-Files/games.csv')
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/cleaning/def_clean.py
         print('..data downloaded...')
         self.n_cuts = n_cuts
         self.frameLimit = frameLimit

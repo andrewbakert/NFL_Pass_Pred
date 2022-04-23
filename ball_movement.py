@@ -17,9 +17,13 @@ def ball_quadrants(pos, y_sections = 3):
     #imports
     import pandas as pd
     import numpy as np
+<<<<<<< HEAD:ball_movement.py
     import os
     print(os.getcwd())
     plays = pd.read_csv('../../../nfl-big-data-bowl-2021/plays.csv')
+=======
+    plays = pd.read_csv('nfl-big-data-bowl-2021/plays.csv')
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/pipe_prep/ball_movement.py
 
     #Get position of ball when it is caught, incomplete, intercepted, etc.
     pass_end = pos[pos['event'].isin(['pass_arrived','pass_outcome_caught','pass_outcome_incomplete','pass_outcome_interception','pass_outcome_touchdown'])].query("displayName == 'Football'").groupby(['gameId','playId']).first().reset_index()[['gameId','playId','x','y','playDirection','event']]

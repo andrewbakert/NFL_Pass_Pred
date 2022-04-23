@@ -22,7 +22,11 @@ def create_starting_chart(pos_df, game_id, play_id):
     """
 
     # Extract all plays.
+<<<<<<< HEAD:play_vis.py
     plays_df = pd.read_csv('../Kaggle-Data-Files/plays.csv')
+=======
+    plays_df = pd.read_csv('Kaggle-Data-Files/plays.csv')
+>>>>>>> parent of 0afc01d (Reorganize repo):python_files/plotting/play_vis.py
 
     # Narrow positions to include only given game and play.
     play_df = pos_df[(pos_df['gameId'] == game_id) & (pos_df['playId'] == play_id)]
@@ -139,7 +143,7 @@ def create_full_chart(pos_df, game_id, play_id, n_cuts=11):
 
     # Select only given play and load plays dataframe
     play_df = pos_df[(pos_df['gameId'] == game_id) & (pos_df['playId'] == play_id)]
-    plays_df = pd.read_csv('../../Kaggle-Data-Files/plays.csv')
+    plays_df = pd.read_csv('Kaggle-Data-Files/plays.csv')
 
     # Select only plays after snap, and then merge with the plays dataframe.
     after_snap = play_df[play_df['time'].ge(play_df[play_df['event'] == 'ball_snap']['time'].iloc[0])]
