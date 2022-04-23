@@ -1,3 +1,11 @@
 # NFL Big Data Bowl Pass Prediction
 
-Must join [Kaggle competition](https://www.kaggle.com/c/nfl-big-data-bowl-2021) for NFL Big Data Bowl 2021, and download data zip file. Many files are too big to store on GitHub, so have been added to `.gitignore` file.
+Following is a brief starting guide to replicating our work on predicting NFL passing quadrants based on offensive and defensive play and positional data. 
+
+## Getting Started
+
+### Clone the repo
+First, to download the repo use the following command in Terminal: `git clone https://github.com/andrewbakert/NFL_Pass_Pred.git`
+
+### Install required packages
+Next, to download the requisite packages and versions run the following: `pip install -r requirements.txt`
