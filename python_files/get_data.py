@@ -1,6 +1,3 @@
-import sys
-sys.path.append('../../NFL_Pass_Pred')
-
 def get_assets():
     '''Get NFL data from Kaggle API and store in working directory'''
     ## instructions on getting data through Kaggle API. API key is read from user/'your name'/.kaggle directory on a mac.
@@ -23,7 +20,7 @@ def get_assets():
         subprocess.run(["kaggle", "competitions", "download", "-c", 'nfl-big-data-bowl-2021'])
 
         import zipfile
-
+        print(os.getcwd())
         with zipfile.ZipFile('../nfl-big-data-bowl-2021.zip', 'r') as zip_ref:
             zip_ref.extractall('../Kaggle-Data-Files')
 

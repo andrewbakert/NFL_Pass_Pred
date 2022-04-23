@@ -22,7 +22,7 @@ def create_starting_chart(pos_df, game_id, play_id):
     """
 
     # Extract all plays.
-    plays_df = pd.read_csv('../../Kaggle-Data-Files/plays.csv')
+    plays_df = pd.read_csv('../Kaggle-Data-Files/plays.csv')
 
     # Narrow positions to include only given game and play.
     play_df = pos_df[(pos_df['gameId'] == game_id) & (pos_df['playId'] == play_id)]

@@ -1,8 +1,5 @@
 # %%
 
-import sys
-sys.path.append('../../python_files')
-
 import pandas as pd
 import numpy as np
 import os
@@ -10,7 +7,6 @@ from get_data import get_assets, get_positional_data
 import time
 import warnings
 warnings.filterwarnings('ignore')
-
 # %%
 
 class InvalidSimilarityMetricError(Exception):
@@ -66,14 +62,14 @@ class DefensiveCleaning:
     """
     def __init__(self, weeks_data=None, n_cuts=11, frameLimit=11, simMethod='distance'):
         print('..............................initializing')
-        if not os.path.exists('../../Kaggle-Data-Files'):
+        if not os.path.exists('../Kaggle-Data-Files'):
             get_assets()
         if type(weeks_data) != pd.DataFrame:
             self.weeks_data = get_positional_data()
         else:
             self.weeks_data = weeks_data
-        self.play_data = pd.read_csv('../../Kaggle-Data-Files/plays.csv')
-        self.game_data = pd.read_csv('../../Kaggle-Data-Files/games.csv')
+        self.play_data = pd.read_csv('../Kaggle-Data-Files/plays.csv')
+        self.game_data = pd.read_csv('../Kaggle-Data-Files/games.csv')
         print('..data downloaded...')
         self.n_cuts = n_cuts
         self.frameLimit = frameLimit
@@ -476,7 +472,7 @@ class DefensiveCleaning:
         print('.....Week {} COMPLETE.....'.format(str(week)))
         return total_df_info
 
-    def generate_full_df(self, first, last, fp='def_clean_output.csv'):
+    def generate_full_df(self, first, last, fp='../assets/def_clean_output.csv'):
         """
         Run combine_week for consecutive number of weeks specified and output to a CSV file
 

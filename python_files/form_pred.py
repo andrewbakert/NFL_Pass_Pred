@@ -22,8 +22,8 @@ def clean_positional(positions, first = 1, last = 17, yards_behind_line = 2):
     Clean DataFrame with positional play-by-by'''
 
     # reading plays (see play data https://www.kaggle.com/c/nfl-big-data-bowl-2021/data)
-    plays = pd.read_csv('../../nfl-big-data-bowl-2021/plays.csv')
-    games = pd.read_csv('../../nfl-big-data-bowl-2021/games.csv')
+    plays = pd.read_csv('../nfl-big-data-bowl-2021/plays.csv')
+    games = pd.read_csv('../nfl-big-data-bowl-2021/games.csv')
 
     #to_datetime
     positions['time'] = pd.to_datetime(positions['time'], format='%Y-%m-%dT%H:%M:%S')

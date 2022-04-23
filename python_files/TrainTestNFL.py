@@ -22,7 +22,7 @@ class TrainTestNFL:
         #imports
         import pandas as pd
         import numpy as np
-        games = pd.read_csv('../../nfl-big-data-bowl-2021/games.csv')
+        games = pd.read_csv('../nfl-big-data-bowl-2021/games.csv')
         
         # Checks for usable data
         if "week" in self.ofc.columns:

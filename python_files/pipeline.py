@@ -1,26 +1,24 @@
 # IMPORTING LOCAL MODULES
-import sys
-sys.path.append('../../python_files')
-
 import importlib
-import pipe_prep.ball_movement
 import get_data
-from cleaning import def_clean, form_pred
-import pipe_prep.TrainTestNFL
+import def_clean
+import form_pred
+import TrainTestNFL
+import ball_movement
 
 # REFRESHING LOCAL CHANGES
 importlib.reload(get_data)
 importlib.reload(form_pred)
 importlib.reload(def_clean)
-importlib.reload(pipe_prep.ball_movement)
-importlib.reload(pipe_prep.TrainTestNFL)
+importlib.reload(ball_movement)
+importlib.reload(TrainTestNFL)
 
 # IMPORTING LOCAL PACKAGES
 from get_data import get_assets, get_positional_data
-from cleaning.form_pred import clean_positional
-from pipe_prep.ball_movement import ball_quadrants
-from cleaning.def_clean import DefensiveCleaning
-from pipe_prep.TrainTestNFL import TrainTestNFL
+from form_pred import clean_positional
+from ball_movement import ball_quadrants
+from def_clean import DefensiveCleaning
+from TrainTestNFL import TrainTestNFL
 import os
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.linear_model import LogisticRegression
@@ -36,6 +34,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.preprocessing import FunctionTransformer
 import pandas as pd
 import re
+import os
 
 class PrepPipe:
     """
@@ -71,7 +70,7 @@ class PrepPipe:
         Cleans all data and breaks into train and test set
     """
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
-                 simMethod='distance', quad_num=4, def_fp='../../assets/def_clean_output.csv'):
+                 simMethod='distance', quad_num=4, def_fp='../assets/def_clean_output.csv'):
         self.first = first
         self.last = last
         self.n_cuts = n_cuts
@@ -79,7 +78,7 @@ class PrepPipe:
         self.simMethod = simMethod
         self.quad_num = quad_num
         self.def_fp = def_fp
-        if not os.path.exists('../../Kaggle-Data-Files'):
+        if not os.path.exists('../Kaggle-Data-Files'):
             get_assets()
         self.positions = get_positional_data()
 
@@ -152,8 +151,8 @@ class OffensiveFormation(BaseEstimator, TransformerMixin):
         Add in offensive formation prediction
 
     """
-    def __init__(self, model=False, model_params=False, model_fp='../../models/off_form.pkl',
-                 scaler_fp="../../models/off_scaler.pkl",
+    def __init__(self, model=False, model_params=False, model_fp='../models/off_form.pkl',
+                 scaler_fp="../models/off_scaler.pkl",
                  cv=5, scoring='f1_micro'):
         if not model:
             self.model = LogisticRegression(max_iter=10000)
@@ -498,7 +497,7 @@ class FullPipeWrapper(PrepPipe):
         Create full processing pipeline
     """
     def __init__(self, first=1, last=14, n_cuts=11, frameLimit=11,
-                 simMethod='distance', quad_num=4, def_fp='../../assets/def_clean_output.csv'):
+                 simMethod='distance', quad_num=4, def_fp='../assets/def_clean_output.csv'):
 
         # Initialize prep pipe
         super().__init__(first, last, n_cuts, frameLimit, simMethod,
@@ -629,4 +628,6 @@ class FullPipeWrapper(PrepPipe):
         else:
             raise SideNotValidError
         return pipe
+#%%
+
 #%%

@@ -17,7 +17,9 @@ def ball_quadrants(pos, y_sections = 3):
     #imports
     import pandas as pd
     import numpy as np
-    plays = pd.read_csv('../../nfl-big-data-bowl-2021/plays.csv')
+    import os
+    print(os.getcwd())
+    plays = pd.read_csv('../../../nfl-big-data-bowl-2021/plays.csv')
 
     #Get position of ball when it is caught, incomplete, intercepted, etc.
     pass_end = pos[pos['event'].isin(['pass_arrived','pass_outcome_caught','pass_outcome_incomplete','pass_outcome_interception','pass_outcome_touchdown'])].query("displayName == 'Football'").groupby(['gameId','playId']).first().reset_index()[['gameId','playId','x','y','playDirection','event']]
@@ -118,3 +120,4 @@ def make_quad_chart(pass_df):
         "x_quad4 = farther than line to gain + 10 yards"],
         }
     )
+#%%
