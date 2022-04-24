@@ -11,7 +11,7 @@ First, to download the repo use the following command in Terminal: `git clone ht
 Next, to download the requisite packages and versions run the following: `pip install -r requirements.txt`
 
 ### Download required data
-We have provided a python script to download the required data from Kaggle and combine the week-by-week positional data into one dataframe. This file is located in [this script](get_data.py).
+We have provided a python script to download the required data from Kaggle and combine the week-by-week positional data into one dataframe. This file is located in [get_data.py](get_data.py).
 
 In order to download the data, run the following commands from that file:
 
@@ -67,4 +67,23 @@ Shown below is a visualization of the full pipeline used after processing the of
 ### Data Preparation
 The first class, `PrepPipe`, was created to pre-processess data and split the data. This class relies on the defensive processing class, the offensive processing function, the ball quadrant creation function, and the data splitting function.
 
-### Offensive Pip
+### Offensive Pipeline
+Using the offensive data, we created a model to predict offensive formation. The starting positions for all players were used as the basis for prediction. The best model and parameters were found using grid search. The notebook used to tune is available as [form_pred.ipynb](form_pred.ipynb). The resulting Decision Tree Classifier and scaler were saved to pickle files. There is a class called `OffensiveFormation` in `pipeline.py` that inherits SKLearn transformer classes to enable inclusion in the pipeline. 
+
+Additional components of the offensive pipeline include scaling of numerical features not used for offensive formation prediction and using One Hot Encoding to convert all categorical variables to numerical vectors.
+
+### Defensive Pipeline
+We also created a pipeline to process defensive data. This is available as the `DefensiveClustering` class, which again is formatted as an SKLearn transformer enabling inclusion in the pipeline. This class fits a PCA with a given variance explained, as well as a KMeans algorithm with a given number of clusters. This pipeline outputs a number of PCA-reduced features and the predicted clusters using the reduced data. Both of these parameters can be tuned in the final pipeline.
+
+### Full Pipeline
+A wrapper was created that inherited the `PrepPipe` class. This simplified the process of combining the full pipeline with a given model. This class can be used as follows:
+
+`pipe_wrap = FullPipeWrapper()` This instantiation inherits a number of features from the `PrepPipe` class, including the first and last weeks used for the training set, the number of cuts used, and the number of quadrants used in both dimensions.
+
+`full_pipe = pipe_wrap.build_pipe()` This class takes two parameters, the side of pipeline to create (`off`, `def`, and `both`), and the model to use for prediction.
+
+## Final Model Fitting
+We used `FullPipeWrapper` to test the performance of both an offense-only model and a full model. In both cases we predicted the X and Y quadrants seperately and used the `GridSearchCV` SKLearn class to perform hyperparameter tuning. We tuned the offense-only model in [model.ipynb](model.ipynb), and we tuned the full model in [full_model.ipynb](full_model.ipynb). We created a plotting function that created line charts based on the `cv_results_` attribute of the fitted grids. An example of one of these plots is shown below. As you can see, an increase in the `max_depth` parameter of the model in this case leads to a worsening in model performance. Given this information, you can reduce the range of `max_depth` in the next grid search.
+![example cv plot](visualizations/example_split_plot.png)
+
+Finally, we evaluated the pipelines with all tuned parameters using the test set and compared these results to those obtained by dummy classifiers using both a `most_frequent` and `stratified` method. The final performance of these models is shown in [final_models.ipynb](final_models.ipynb).
