@@ -27,6 +27,7 @@ We also created several functions that can be used to visualize the positions of
 2) `create_starting_chart(positions, gameId, playId)` The gameId and playId are integer representations of game and play IDs from the positional dataframe columns of the same names.
 
 An example of an output of this function is shown below. Note that the x and y coordinate directions are reversed from the full field chart.
+
 ![starting vis](visualizations/first_play_starting.png)
 
 ## Data Cleaning
@@ -62,6 +63,7 @@ Once we created the processed offensive data, the processed defensive data, and 
 
 ## Pipeline
 Shown below is a visualization of the full pipeline used after processing the offensive and defensive data. We created several classes to streamline data preparation and processing. These classes are contained in [pipeline.py](pipeline.py). The classes in this script were intended to be a replacement for coding several processing steps when training. 
+
 ![pipe vis](visualizations/final_pipeline_vis.png)
 
 ### Data Preparation
@@ -84,6 +86,7 @@ A wrapper was created that inherited the `PrepPipe` class. This simplified the p
 
 ## Final Model Fitting
 We used `FullPipeWrapper` to test the performance of both an offense-only model and a full model. In both cases we predicted the X and Y quadrants seperately and used the `GridSearchCV` SKLearn class to perform hyperparameter tuning. We tuned the offense-only model in [model.ipynb](model.ipynb), and we tuned the full model in [full_model.ipynb](full_model.ipynb). We created a plotting function that created line charts based on the `cv_results_` attribute of the fitted grids. An example of one of these plots is shown below. As you can see, an increase in the `max_depth` parameter of the model in this case leads to a worsening in model performance. Given this information, you can reduce the range of `max_depth` in the next grid search.
+
 ![example cv plot](visualizations/example_split_plot.png)
 
 Finally, we evaluated the pipelines with all tuned parameters using the test set and compared these results to those obtained by dummy classifiers using both a `most_frequent` and `stratified` method. The final performance of these models is shown in [final_models.ipynb](final_models.ipynb).
