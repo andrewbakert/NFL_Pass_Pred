@@ -52,7 +52,7 @@ In order to create a Y variable, we first processed data on where the ball was t
 
 `positions = get_positional_data()`
 
-`quads = ball_quadrants(positions)` There is an optional paramters, `y_sections`, which indicates the number of y position buckets used for quadrant creation.
+`quads = ball_quadrants(positions)` There is an optional parameter, `y_sections`, which indicates the number of y position buckets used for quadrant creation.
 
 ### Splitting the Data
 Once we created the processed offensive data, the processed defensive data, and the quadrants, we created a function to split this data into train and test sets. This function is available in [TrainTestNFL.py](TrainTestNFL.py). An implementation of this function given the processed data and quadrants is shown below:
