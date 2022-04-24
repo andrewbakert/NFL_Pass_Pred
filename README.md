@@ -1,6 +1,6 @@
 # NFL Big Data Bowl Pass Prediction
 
-Following is a brief starting guide to replicating our work on predicting NFL passing quadrants based on offensive and defensive play and positional data. 
+Following is a starting guide to replicating our work on predicting NFL passing quadrants based on offensive and defensive play and positional data. 
 
 ## Getting Started
 
