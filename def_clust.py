@@ -110,7 +110,8 @@ def prep_data(df, cols, scale=True):
     melt_df['%Z'] = melt_df['Z'] / melt_df['TOT']
     melt_df = melt_df.fillna(0)
 
-    orig_cols =  ['gameId','playId','defendersInTheBox','extra_blitzers','on_line_coverage','numberOfPassRushers','DB','LB','DL','yardline_first','yardline_100']
+    orig_cols =  ['gameId','playId','defendersInTheBox','extra_blitzers','on_line_coverage','numberOfPassRushers','DB',
+                  'LB','DL','yardline_first_dir','yardline_100_dir']
     orig_df = df[orig_cols].set_index(['gameId','playId'])
 
     orig_df = orig_df.merge(melt_df[['%B','%M','%Z']], on=['gameId','playId']).fillna(0)
@@ -165,6 +166,6 @@ def return_pca_and_clusters(df, columns='all', n_clusters=5, pca_comps=0, scale=
     n_comps = optimize_pca_components(X, pca_comps)
     scores_pca, comps_pca = optimize_kmeans_clusters_with_pca(X, n_comps)
     # plot_pca_heatmap(comps_pca, pca_df)
-    df_seg = kmeans_clusters_and_dataframe(scores_pca, pca_df, n_clusters, 'assets/def_clust_output.csv')
+    df_seg = kmeans_clusters_and_dataframe(scores_pca, pca_df, n_clusters, 'def_clust_output.csv')
     
     return df_seg
