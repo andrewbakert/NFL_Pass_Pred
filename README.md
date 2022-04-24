@@ -94,3 +94,6 @@ We used `FullPipeWrapper` to test the performance of both an offense-only model 
 ![example cv plot](visualizations/example_split_plot.png)
 
 Finally, we evaluated the pipelines with all tuned parameters using the test set and compared these results to those obtained by dummy classifiers using both a `most_frequent` and `stratified` method. The final performance of these models is shown in [final_models.ipynb](final_models.ipynb).
+
+## Blog Post
+We also created a blog post on Medium that covers our analysis process in full. That post is avaialble [here](https://medium.com/@benwolbransky/2019-nfl-big-data-bowl-pass-prediction-cce95fa31f82).
