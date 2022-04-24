@@ -44,9 +44,27 @@ The class used to process defensive data is available in [def_clean.py](def_clea
 
 `def_clean_df = def_clean.generate_full_df(1, 17)`. The first input is the first week processed, and the second is the last week processed.
 
-## Pipeline Processing
-Shown below is a visualization of the full pipeline used after processing the offensive and defensive data.
-![pipe vis](visualizations/final_pipeline_vis.png)
+## Pipeline Pre-Processing
 
 ### Ball Quadrants
-In order to create a Y variable, we first processed data on where the ball was thrown. We separated the defensive side of the field into 16 quadrants, including 4 in the x direction and 4 in the y direction. The placement of the
+In order to create a Y variable, we first processed data on where the ball was thrown. We separated the defensive side of the field into 16 quadrants, including 4 in the x direction and 4 in the y direction. The placement of the quadrants was dependent on the distance laterally from the quarterback and space downfield. [ball_movement.py](ball_movement.py) contains the function used for this purpose. An example of implementation is shown below:
+
+`positions = get_positional_data()`
+
+`quads = ball_quadrants(positions)` There is an optional paramters, `y_sections`, which indicates the number of y position buckets used for quadrant creation.
+
+### Splitting the Data
+Once we created the processed offensive data, the processed defensive data, and the quadrants, we created a function to split this data into train and test sets. This function is available in [TrainTestNFL.py](TrainTestNFL.py). An implementation of this function given the processed data and quadrants is shown below:
+
+`train_test = TrainTestNFL(off_clean, def_clean_df, quads)` These parameters match the outputs of the offensive processing, defensive processing, and quadrant creation, respectively.
+
+`X_train, X_test, y_train, y_test = train_test.split(1, 14)`. The two parameters bound the size of the train and test set. In this case, the training set contains data from week 1 to 14, and the test set contains data from week 15 to week 17.
+
+## Pipeline
+Shown below is a visualization of the full pipeline used after processing the offensive and defensive data. We created several classes to streamline data preparation and processing. These classes are contained in [pipeline.py](pipeline.py). The classes in this script were intended to be a replacement for coding several processing steps when training. 
+![pipe vis](visualizations/final_pipeline_vis.png)
+
+### Data Preparation
+The first class, `PrepPipe`, was created to pre-processess data and split the data. This class relies on the defensive processing class, the offensive processing function, the ball quadrant creation function, and the data splitting function.
+
+### Offensive Pip
